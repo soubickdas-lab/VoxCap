@@ -72,46 +72,86 @@ def _load_model():
 
 
 _SENT_END = (".", "?", "!", "。", "؟", "।")
+_CLAUSE_END = (",", ";", ":", "،", "—", ")", "”", '"', "'")
+# In words se NAYI line shuru hona natural lagta hai (clause boundaries)
+_CONNECTORS = {
+    "and", "but", "or", "so", "because", "when", "while", "where", "which",
+    "that", "who", "whose", "after", "before", "until", "though", "although",
+    "since", "if", "unless", "as", "than", "then", "instead", "meaning",
+    # Hindi / Urdu (Devanagari + common romanized)
+    "और", "लेकिन", "क्योंकि", "जब", "तो", "पर", "मगर", "कि", "जो", "अगर",
+    "aur", "lekin", "kyunki", "jab", "toh", "par", "magar", "ki", "jo", "agar",
+}
+
+
+def _text_len(ws: list[dict]) -> int:
+    return sum(len(w["word"]) for w in ws) + max(len(ws) - 1, 0)
 
 
 def chunk_words(words: list[dict], max_chars: int = 70,
                 max_gap: float = 0.6) -> list[dict]:
-    """CapCut-style captions: line words se bharti jaati hai (~max_chars tak),
-    aur break hota hai jab —
-      1) sentence khatam ho (. ? !)
-      2) speaker lambi saans le (gap >= max_gap)
-      3) line max_chars par bhar jaye
-    Bilkul CapCut auto-captions jaisa: lambi natural lines, sentence apni
-    caption me, chhota leftover agli line par.
+    """CapCut-style captions jisme har line ka apna matlab bane.
+
+    1) Pehle sentences banao — full stop / sawal / lambi saans (gap) par.
+    2) Jo sentence max_chars me fit ho, wo puri ek caption.
+    3) Lambi sentence ko sabse MEANINGFUL jagah par todo:
+       comma/clause ke baad, "when/and/but/ki/lekin" jaise connector se
+       pehle, ya pause par — dono taraf balanced length rakhte hue.
+       Kabhi bhi phrase ke beech me andha cut nahi.
     """
-    chunks: list[dict] = []
+    if not words:
+        return []
+
+    sentences: list[list[dict]] = []
     cur: list[dict] = []
-    cur_len = 0
-
-    def close() -> None:
-        nonlocal cur_len
-        if not cur:
-            return
-        chunks.append({
-            "start": cur[0]["start"],
-            "end": cur[-1]["end"],
-            "text": " ".join(w["word"] for w in cur),
-            "words": list(cur),
-        })
-        cur.clear()
-        cur_len = 0
-
     for w in words:
-        wlen = len(w["word"])
-        if cur:
-            gap = w["start"] - cur[-1]["end"]
-            if gap >= max_gap or cur_len + 1 + wlen > max_chars:
-                close()
-        cur_len += wlen if not cur else 1 + wlen
+        if cur and (w["start"] - cur[-1]["end"]) >= max_gap:
+            sentences.append(cur)
+            cur = []
         cur.append(w)
         if w["word"].rstrip().endswith(_SENT_END):
-            close()
-    close()
+            sentences.append(cur)
+            cur = []
+    if cur:
+        sentences.append(cur)
+
+    MIN_CHARS = 12  # itni chhoti line ka matlab nahi banta
+
+    def best_split(ws: list[dict]) -> int:
+        total = _text_len(ws)
+        best_i, best_score = None, float("-inf")
+        left = 0
+        for i in range(1, len(ws)):
+            left += len(ws[i - 1]["word"]) + (1 if i > 1 else 0)
+            right = total - left - 1
+            if left < MIN_CHARS or right < MIN_CHARS:
+                continue
+            score = 0.0
+            if ws[i - 1]["word"].rstrip().endswith(_CLAUSE_END):
+                score += 4.0
+            if ws[i]["word"].strip().lower().strip('"“”') in _CONNECTORS:
+                score += 2.5
+            score += (ws[i]["start"] - ws[i - 1]["end"]) * 8  # pause = best cut
+            score += 1 - abs(left - right) / max(total, 1)    # balance bonus
+            if score > best_score:
+                best_score, best_i = score, i
+        return best_i if best_i is not None else max(1, len(ws) // 2)
+
+    def split(ws: list[dict]) -> list[list[dict]]:
+        if len(ws) <= 1 or _text_len(ws) <= max_chars:
+            return [ws]
+        i = best_split(ws)
+        return split(ws[:i]) + split(ws[i:])
+
+    chunks: list[dict] = []
+    for sent in sentences:
+        for part in split(sent):
+            chunks.append({
+                "start": part[0]["start"],
+                "end": part[-1]["end"],
+                "text": " ".join(w["word"] for w in part),
+                "words": part,
+            })
     return chunks
 
 
