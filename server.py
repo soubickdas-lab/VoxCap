@@ -42,6 +42,8 @@ APP_DIR = Path(__file__).parent
 MODEL_NAME = os.environ.get("VOXCAP_MODEL", "large-v3")
 # GPU na ho to chhota model — CPU par large-v3 bahut slow hota hai
 CPU_MODEL_NAME = os.environ.get("VOXCAP_CPU_MODEL", "medium")
+# Kitne 30s segments ek saath GPU par jayenge — jitna bada, utna full GPU usage
+BATCH_SIZE = int(os.environ.get("VOXCAP_BATCH", "16"))
 
 app = FastAPI(title="VoxCap")
 
@@ -57,71 +59,59 @@ _worker_lock = threading.Lock()
 
 
 def _load_model():
-    from faster_whisper import WhisperModel
+    """GPU par batched pipeline — segments parallel process hote hain,
+    GPU pura saturate hota hai (sequential se ~5x fast)."""
+    from faster_whisper import BatchedInferencePipeline, WhisperModel
 
     try:
-        return WhisperModel(MODEL_NAME, device="cuda", compute_type="float16"), "cuda"
+        model = WhisperModel(MODEL_NAME, device="cuda", compute_type="float16")
+        return BatchedInferencePipeline(model=model), "cuda", BATCH_SIZE
     except Exception as exc:  # no CUDA / missing DLLs → CPU fallback
         print(f"[voxcap] CUDA unavailable ({exc}); falling back to CPU int8 ({CPU_MODEL_NAME})")
-        return WhisperModel(CPU_MODEL_NAME, device="cpu", compute_type="int8"), "cpu"
+        return WhisperModel(CPU_MODEL_NAME, device="cpu", compute_type="int8"), "cpu", None
 
 
 _SENT_END = (".", "?", "!", "。", "؟", "।")
-_SOFT_END = (",", ";", ":", "،", "—", "-")
 
 
-def chunk_words(words: list[dict], max_words: int, max_chars: int = 42,
-                hard_gap: float = 0.45) -> list[dict]:
-    """CapCut-style chunking: pehle saans/pause par todo, phir zaroorat ho to.
-
-    1) Hard breaks — jahan speaker ruk raha hai (gap >= hard_gap) ya sentence
-       khatam hua, wahan phrase cut hota hai. Yehi natural breaks hain.
-    2) Lambi phrase ho to usko best pause point par split karte hain —
-       sabse bada gap / comma, beech ke aas-paas — recursively, jab tak
-       har chunk max_words/max_chars ke andar na aa jaye.
+def chunk_words(words: list[dict], max_chars: int = 70,
+                max_gap: float = 0.6) -> list[dict]:
+    """CapCut-style captions: line words se bharti jaati hai (~max_chars tak),
+    aur break hota hai jab —
+      1) sentence khatam ho (. ? !)
+      2) speaker lambi saans le (gap >= max_gap)
+      3) line max_chars par bhar jaye
+    Bilkul CapCut auto-captions jaisa: lambi natural lines, sentence apni
+    caption me, chhota leftover agli line par.
     """
-    if not words:
-        return []
-
-    phrases: list[list[dict]] = []
+    chunks: list[dict] = []
     cur: list[dict] = []
+    cur_len = 0
+
+    def close() -> None:
+        nonlocal cur_len
+        if not cur:
+            return
+        chunks.append({
+            "start": cur[0]["start"],
+            "end": cur[-1]["end"],
+            "text": " ".join(w["word"] for w in cur),
+            "words": list(cur),
+        })
+        cur.clear()
+        cur_len = 0
+
     for w in words:
-        if cur and (w["start"] - cur[-1]["end"]) >= hard_gap:
-            phrases.append(cur)
-            cur = []
+        wlen = len(w["word"])
+        if cur:
+            gap = w["start"] - cur[-1]["end"]
+            if gap >= max_gap or cur_len + 1 + wlen > max_chars:
+                close()
+        cur_len += wlen if not cur else 1 + wlen
         cur.append(w)
         if w["word"].rstrip().endswith(_SENT_END):
-            phrases.append(cur)
-            cur = []
-    if cur:
-        phrases.append(cur)
-
-    def too_big(ph: list[dict]) -> bool:
-        return len(ph) > max_words or sum(len(w["word"]) + 1 for w in ph) - 1 > max_chars
-
-    def split(ph: list[dict]) -> list[list[dict]]:
-        if len(ph) <= 1 or not too_big(ph):
-            return [ph]
-        best_i, best_score = len(ph) // 2, -1.0
-        for i in range(1, len(ph)):
-            gap = ph[i]["start"] - ph[i - 1]["end"]
-            score = gap * 10
-            if ph[i - 1]["word"].rstrip().endswith(_SOFT_END):
-                score += 2.0
-            score += 1 - abs(i - len(ph) / 2) / len(ph)  # beech ke paas ho to behtar
-            if score > best_score:
-                best_score, best_i = score, i
-        return split(ph[:best_i]) + split(ph[best_i:])
-
-    chunks: list[dict] = []
-    for ph in phrases:
-        for part in split(ph):
-            chunks.append({
-                "start": part[0]["start"],
-                "end": part[-1]["end"],
-                "text": " ".join(w["word"] for w in part),
-                "words": part,
-            })
+            close()
+    close()
     return chunks
 
 
@@ -256,25 +246,25 @@ def align_script_to_words(words: list[dict], lines: list[str]) -> list[dict]:
 
 def _worker_main(task_q, result_q) -> None:
     """Alag process: model ek baar load hota hai, jobs process karta rehta hai."""
-    model, device = None, None
+    model, device, batch = None, None, None
     while True:
         task = task_q.get()
         if task is None:
             return
-        job_id, path, language, max_words, script = task
+        job_id, path, language, max_chars, script = task
         try:
             if model is None:
                 result_q.put((job_id, "status", "loading_model"))
-                model, device = _load_model()
+                model, device, batch = _load_model()
             result_q.put((job_id, "device", device))
             result_q.put((job_id, "status", "transcribing"))
 
-            segments, info = model.transcribe(
-                path,
-                language=language,
-                word_timestamps=True,
-                vad_filter=True,
-            )
+            kwargs = dict(language=language, word_timestamps=True, vad_filter=True)
+            if batch:
+                # without_timestamps=True (batched default) punctuation kha jata hai
+                kwargs["batch_size"] = batch
+                kwargs["without_timestamps"] = False
+            segments, info = model.transcribe(path, **kwargs)
 
             words: list[dict] = []
             for seg in segments:
@@ -292,7 +282,7 @@ def _worker_main(task_q, result_q) -> None:
                 chunks = align_script_to_words(words, script_lines)
                 mode = "matcher"
             else:
-                chunks = chunk_words(words, max_words=max_words)
+                chunks = chunk_words(words, max_chars=max_chars)
                 mode = "auto"
             result_q.put((job_id, "result", {
                 "mode": mode,
@@ -367,13 +357,13 @@ def _kill_worker() -> None:
         _worker = None
 
 
-def _start_job(path: str, language: str, max_words: int, script: str = "") -> str:
+def _start_job(path: str, language: str, max_chars: int, script: str = "") -> str:
     job_id = uuid.uuid4().hex[:12]
     with _jobs_lock:
         _jobs[job_id] = {"status": "queued", "progress": 0.0, "path": path}
     _ensure_worker()
     lang = None if language == "auto" else language
-    _task_q.put((job_id, path, lang, max(1, min(max_words, 12)), script))
+    _task_q.put((job_id, path, lang, max(30, min(max_chars, 120)), script))
     return job_id
 
 
@@ -381,13 +371,13 @@ def _start_job(path: str, language: str, max_words: int, script: str = "") -> st
 async def transcribe(
     file: UploadFile = File(...),
     language: str = Form("auto"),
-    max_words: int = Form(4),
+    max_chars: int = Form(70),
 ):
     suffix = Path(file.filename or "audio").suffix or ".bin"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(await file.read())
         tmp_path = tmp.name
-    return {"job_id": _start_job(tmp_path, language, max_words)}
+    return {"job_id": _start_job(tmp_path, language, max_chars)}
 
 
 # ---- chunked upload (Cloudflare limits a single request to ~100 MB, so the
@@ -427,14 +417,14 @@ async def upload_chunk(upload_id: str = Form(...), chunk: UploadFile = File(...)
 async def upload_finish(
     upload_id: str = Form(...),
     language: str = Form("auto"),
-    max_words: int = Form(4),
+    max_chars: int = Form(70),
     script: str = Form(""),
 ):
     with _uploads_lock:
         path = _uploads.pop(upload_id, None)
     if path is None:
         raise HTTPException(404, "upload not found")
-    return {"job_id": _start_job(path, language, max_words, script)}
+    return {"job_id": _start_job(path, language, max_chars, script)}
 
 
 @app.get("/api/jobs/{job_id}")
