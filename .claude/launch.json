@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "voxcap",
+      "runtimeExecutable": "D:\\VoxCap\\.venv\\Scripts\\python.exe",
+      "runtimeArgs": ["D:\\VoxCap\\server.py"],
+      "port": 8765
+    }
+  ]
+}

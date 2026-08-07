@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoxCap — CapCut-style SRT Generator</title>
+<style>
+  :root {
+    --bg: #0d0d12;
+    --panel: #16161e;
+    --panel-2: #1d1d28;
+    --border: #2a2a38;
+    --text: #f2f2f7;
+    --muted: #8a8a9a;
+    --accent: #00e0a4;
+    --accent-2: #7c5cff;
+    --danger: #ff5c7a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    min-height: 100vh;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 16px 28px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+  .logo span { color: var(--accent); }
+  .tagline { color: var(--muted); font-size: 13px; margin-top: 3px; }
+  main { max-width: 900px; margin: 0 auto; padding: 28px 20px 80px; }
+
+  #dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 60px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    background: var(--panel);
+  }
+  #dropzone:hover, #dropzone.drag { border-color: var(--accent); background: #16201d; }
+  #dropzone .big { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+  #dropzone .sub { color: var(--muted); font-size: 13px; }
+  #dropzone .icon { font-size: 40px; margin-bottom: 14px; }
+  #dropzone.busy { pointer-events: none; opacity: .6; }
+
+  .controls {
+    display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+    margin-top: 18px; padding: 16px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 12px;
+  }
+  .controls label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 5px; }
+  select, .btn {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 9px 14px; font-size: 14px; cursor: pointer;
+  }
+  input[type=range] { accent-color: var(--accent); width: 140px; }
+  .btn-primary {
+    background: var(--accent); color: #06231a; font-weight: 700; border: none;
+    padding: 11px 26px; border-radius: 10px; font-size: 15px; cursor: pointer;
+  }
+  .btn-rec { border-color: var(--danger); color: var(--danger); font-weight: 600; }
+  .btn-rec.recording { background: var(--danger); color: #fff; animation: pulse 1.2s infinite; }
+  @keyframes pulse { 50% { opacity: .6; } }
+
+  #progress-wrap { display: none; margin-top: 22px; }
+  .bar-outer { height: 10px; background: var(--panel-2); border-radius: 6px; overflow: hidden; }
+  .bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width .4s; border-radius: 6px;
+  }
+  #progress-label { font-size: 13px; color: var(--muted); margin-top: 8px; }
+
+  #result { display: none; margin-top: 26px; }
+  .meta { color: var(--muted); font-size: 13px; margin: 0 2px 14px; }
+  .exports { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+  #srt-preview {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 18px; font-family: Consolas, monospace; font-size: 13px;
+    line-height: 1.5; color: #c9c9d6; max-height: 420px; overflow: auto;
+    white-space: pre-wrap;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="logo">Vox<span>Cap</span></div>
+    <div class="tagline">Audio daalo → CapCut-style SRT ready · powered by Whisper large-v3</div>
+  </div>
+</header>
+
+<main>
+  <div id="dropzone">
+    <div class="icon">🎬</div>
+    <div class="big">Audio ya Video yahan drop karo</div>
+    <div class="sub">drop karte hi captions banna shuru — SRT automatically download hogi</div>
+    <input type="file" id="file-input" accept="audio/*,video/*" hidden>
+  </div>
+
+  <div class="controls">
+    <div>
+      <label>Language</label>
+      <select id="language">
+        <option value="auto">Auto detect</option>
+        <option value="hi">Hindi</option>
+        <option value="en">English</option>
+        <option value="ur">Urdu</option>
+        <option value="pa">Punjabi</option>
+        <option value="bn">Bengali</option>
+        <option value="ta">Tamil</option>
+        <option value="te">Telugu</option>
+      </select>
+    </div>
+    <div>
+      <label>Words per caption: <b id="mw-val">4</b></label>
+      <input type="range" id="max-words" min="1" max="8" value="4">
+    </div>
+    <div style="margin-left:auto;">
+      <button class="btn btn-rec" id="rec-btn">● Record Mic</button>
+    </div>
+  </div>
+
+  <div id="progress-wrap">
+    <div class="bar-outer"><div class="bar-inner" id="bar"></div></div>
+    <div id="progress-label">Starting…</div>
+  </div>
+
+  <div id="result">
+    <div class="meta" id="meta"></div>
+    <div class="exports">
+      <button class="btn-primary" onclick="downloadSrt()">⬇ Download SRT</button>
+      <button class="btn" onclick="copySrt(this)">📋 Copy</button>
+    </div>
+    <pre id="srt-preview"></pre>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let selectedFile = null;
+let data = null;
+let mediaRecorder = null;
+let busy = false;
+
+/* ---------- file selection → auto transcribe ---------- */
+const dz = $('dropzone');
+dz.addEventListener('click', () => $('file-input').click());
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag');
+  if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
+});
+$('file-input').addEventListener('change', e => {
+  if (e.target.files.length) setFile(e.target.files[0]);
+});
+function setFile(f) {
+  if (busy) return;
+  selectedFile = f;
+  dz.querySelector('.big').textContent = '🎧 ' + f.name;
+  dz.querySelector('.sub').textContent = (f.size / 1048576).toFixed(1) + ' MB — processing…';
+  transcribe();
+}
+
+/* ---------- mic recording ---------- */
+$('rec-btn').addEventListener('click', async () => {
+  const btn = $('rec-btn');
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const parts = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e => parts.push(e.data);
+    mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(parts, { type: mediaRecorder.mimeType });
+      btn.classList.remove('recording');
+      btn.textContent = '● Record Mic';
+      setFile(new File([blob], 'recording.webm', { type: blob.type }));
+    };
+    mediaRecorder.start();
+    btn.classList.add('recording');
+    btn.textContent = '■ Stop';
+  } catch (err) {
+    alert('Mic access nahi mila: ' + err.message);
+  }
+});
+
+$('max-words').addEventListener('input', e => $('mw-val').textContent = e.target.value);
+
+/* ---------- transcribe ---------- */
+async function transcribe() {
+  if (!selectedFile || busy) return;
+  busy = true;
+  dz.classList.add('busy');
+  $('result').style.display = 'none';
+  $('progress-wrap').style.display = 'block';
+  setProgress(0, 'Uploading…');
+
+  try {
+    // Chunked upload — Cloudflare limits one request to ~100 MB, so big
+    // files are sent in 20 MB pieces and reassembled on the server.
+    const CHUNK = 20 * 1024 * 1024;
+    const initFd = new FormData();
+    initFd.append('filename', selectedFile.name);
+    const initRes = await fetch('/api/upload/init', { method: 'POST', body: initFd });
+    if (!initRes.ok) throw new Error(await initRes.text());
+    const { upload_id } = await initRes.json();
+
+    const total = Math.ceil(selectedFile.size / CHUNK);
+    for (let i = 0; i < total; i++) {
+      const fd = new FormData();
+      fd.append('upload_id', upload_id);
+      fd.append('chunk', selectedFile.slice(i * CHUNK, (i + 1) * CHUNK));
+      const res = await fetch('/api/upload/chunk', { method: 'POST', body: fd });
+      if (!res.ok) throw new Error(await res.text());
+      setProgress(((i + 1) / total) * 25, `Uploading… ${Math.round(((i + 1) / total) * 100)}% (${i + 1}/${total})`);
+    }
+
+    const finFd = new FormData();
+    finFd.append('upload_id', upload_id);
+    finFd.append('language', $('language').value);
+    finFd.append('max_words', $('max-words').value);
+    const finRes = await fetch('/api/upload/finish', { method: 'POST', body: finFd });
+    if (!finRes.ok) throw new Error(await finRes.text());
+    const { job_id } = await finRes.json();
+    await poll(job_id);
+  } catch (err) {
+    setProgress(0, '❌ Error: ' + err.message);
+  }
+  busy = false;
+  dz.classList.remove('busy');
+  dz.querySelector('.big').textContent = 'Audio ya Video yahan drop karo';
+  dz.querySelector('.sub').textContent = 'drop karte hi captions banna shuru — SRT automatically download hogi';
+}
+
+async function poll(jobId) {
+  while (true) {
+    await new Promise(r => setTimeout(r, 800));
+    const job = await (await fetch('/api/jobs/' + jobId)).json();
+    if (job.status === 'queued') setProgress(26, 'Queued…');
+    else if (job.status === 'loading_model') setProgress(28, 'Model load ho raha hai…');
+    else if (job.status === 'transcribing') setProgress(30 + job.progress * 68, 'Transcribing… ' + Math.round(job.progress * 100) + '%');
+    else if (job.status === 'error') { setProgress(0, '❌ ' + job.error); return; }
+    else if (job.status === 'done') {
+      setProgress(100, '✅ Done — SRT download ho gayi');
+      data = job.result;
+      showResult();
+      return;
+    }
+  }
+}
+
+function setProgress(pct, label) {
+  $('bar').style.width = pct + '%';
+  $('progress-label').textContent = label;
+}
+
+/* ---------- result ---------- */
+function showResult() {
+  $('meta').textContent =
+    `Language: ${data.language} (${Math.round(data.language_probability * 100)}%) · ` +
+    `Duration: ${fmtTime(data.duration)} · ${data.chunks.length} captions · ${data.words.length} words`;
+  $('srt-preview').textContent = buildSrt();
+  $('result').style.display = 'block';
+  downloadSrt();
+  $('result').scrollIntoView({ behavior: 'smooth' });
+}
+
+/* ---------- SRT ---------- */
+function fmtTime(s) {
+  const m = Math.floor(s / 60), sec = (s % 60).toFixed(1);
+  return String(m).padStart(2, '0') + ':' + String(sec).padStart(4, '0');
+}
+function srtTime(s) {
+  const d = new Date(s * 1000);
+  return String(Math.floor(s / 3600)).padStart(2, '0') + ':' +
+    String(d.getUTCMinutes()).padStart(2, '0') + ':' +
+    String(d.getUTCSeconds()).padStart(2, '0') + ',' +
+    String(d.getUTCMilliseconds()).padStart(3, '0');
+}
+function buildSrt() {
+  if (!data) return '';
+  return data.chunks.map((c, i) =>
+    `${i + 1}\n${srtTime(c.start)} --> ${srtTime(c.end)}\n${c.text}\n`).join('\n');
+}
+function downloadSrt() {
+  if (!data) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([buildSrt()], { type: 'text/plain' }));
+  const base = (selectedFile?.name || 'voxcap').replace(/\.[^.]+$/, '');
+  a.download = base + '.srt';
+  a.click();
+}
+function copySrt(btn) {
+  navigator.clipboard.writeText(buildSrt()).then(() => {
+    btn.textContent = '✅ Copied';
+    setTimeout(() => btn.textContent = '📋 Copy', 1500);
+  });
+}
+</script>
+</body>
+</html>
