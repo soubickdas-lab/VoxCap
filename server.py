@@ -6,6 +6,7 @@ timestamps grouped into short CapCut-style caption chunks.
 """
 
 import os
+import re
 import sys
 import site
 import tempfile
@@ -107,7 +108,137 @@ def chunk_words(words: list[dict], max_words: int, max_chars: int = 32,
     return chunks
 
 
-def _run_job(job_id: str, path: str, language: str | None, max_words: int) -> None:
+def parse_script_lines(text: str) -> list[str]:
+    """User ke text box se lines nikaalo — 'SN  Beat' jaise header aur
+    aage laga serial number (1., 2), 3 -, tab…) hata do."""
+    lines = []
+    for raw in text.splitlines():
+        s = raw.strip()
+        if not s:
+            continue
+        if re.match(r"^(sn|s\.?\s*no\.?|serial|#)\s*\t?\s*beats?$", s, re.I):
+            continue
+        s = re.sub(r"^\d+\s*[.\)\-:\t]?\s+", "", s).strip()
+        if s:
+            lines.append(s)
+    return lines
+
+
+def _norm_tok(w: str) -> str:
+    return re.sub(r"[^\w']+", "", w.lower())
+
+
+def align_script_to_words(words: list[dict], lines: list[str]) -> list[dict]:
+    """Har script line ko audio ke word timestamps se align karo.
+
+    Script ke tokens aur transcript ke words par edit-distance DP chalta hai;
+    jis line ke tokens transcript me match hue, uska time span wahi hai.
+    Match bahut kam mile (beat-labels jaisa input) to audio ko line ki
+    lambai ke hisaab se proportionally baant dete hain.
+    """
+    if not lines:
+        return []
+
+    def proportional() -> list[dict]:
+        if not words:
+            return []
+        t0, t1 = words[0]["start"], words[-1]["end"]
+        span = max(t1 - t0, 0.01)
+        total = sum(len(l) for l in lines) or 1
+        chunks, acc = [], 0
+        for line in lines:
+            s = t0 + span * acc / total
+            acc += len(line)
+            e = t0 + span * acc / total
+            chunks.append({"start": round(s, 3), "end": round(e, 3),
+                           "text": line, "words": []})
+        return chunks
+
+    script = [(li, _norm_tok(t)) for li, line in enumerate(lines)
+              for t in re.findall(r"[\w']+", line.lower())]
+    word_toks = [_norm_tok(w["word"]) for w in words]
+    S, M = len(script), len(word_toks)
+    if not script or not words or S * M > 20_000_000:
+        return proportional()
+
+    # DP over script tokens x transcript words (match 0 / sub 1 / gap 1)
+    INF = float("inf")
+    prev = list(range(M + 1))
+    back = [[0] * (M + 1) for _ in range(S + 1)]  # 1=diag, 2=up(skip tok), 3=left(skip word)
+    for i in range(1, S + 1):
+        cur = [i] + [0] * M
+        back[i][0] = 2
+        tok = script[i - 1][1]
+        for j in range(1, M + 1):
+            diag = prev[j - 1] + (0 if tok == word_toks[j - 1] else 1)
+            up = prev[j] + 1
+            left = cur[j - 1] + 1
+            best = min(diag, up, left)
+            cur[j] = best
+            back[i][j] = 1 if best == diag else (2 if best == up else 3)
+        prev = cur
+
+    # backtrack — har line ke matched words ka span nikalo
+    spans: dict[int, list[int]] = {}
+    exact = 0
+    i, j = S, M
+    while i > 0 or j > 0:
+        move = back[i][j] if i > 0 else 3
+        if move == 1:
+            if script[i - 1][1] == word_toks[j - 1]:
+                li = script[i - 1][0]
+                spans.setdefault(li, [j - 1, j - 1])
+                spans[li][0] = min(spans[li][0], j - 1)
+                spans[li][1] = max(spans[li][1], j - 1)
+                exact += 1
+            i, j = i - 1, j - 1
+        elif move == 2:
+            i -= 1
+        else:
+            j -= 1
+
+    if exact / S < 0.3:  # script bola hi nahi gaya — labels honge
+        return proportional()
+
+    # known spans → times; missing lines ko gap me char-proportion se bhar do
+    starts: list[float | None] = [None] * len(lines)
+    ends: list[float | None] = [None] * len(lines)
+    for li, (j0, j1) in spans.items():
+        starts[li] = words[j0]["start"]
+        ends[li] = words[j1]["end"]
+
+    audio_start, audio_end = words[0]["start"], words[-1]["end"]
+    k = 0
+    while k < len(lines):
+        if starts[k] is not None:
+            k += 1
+            continue
+        run_start = k
+        while k < len(lines) and starts[k] is None:
+            k += 1
+        gap_s = ends[run_start - 1] if run_start > 0 else audio_start
+        gap_e = starts[k] if k < len(lines) else audio_end
+        total = sum(len(lines[x]) for x in range(run_start, k)) or 1
+        acc = 0
+        for x in range(run_start, k):
+            starts[x] = gap_s + (gap_e - gap_s) * acc / total
+            acc += len(lines[x])
+            ends[x] = gap_s + (gap_e - gap_s) * acc / total
+
+    # monotonic + no overlap
+    chunks = []
+    prev_end = audio_start
+    for li, line in enumerate(lines):
+        s = max(starts[li], prev_end)
+        e = max(ends[li], s + 0.2)
+        prev_end = e
+        chunks.append({"start": round(s, 3), "end": round(e, 3),
+                       "text": line, "words": []})
+    return chunks
+
+
+def _run_job(job_id: str, path: str, language: str | None, max_words: int,
+             script: str = "") -> None:
     try:
         _update_job(job_id, status="loading_model")
         model = _get_model()
@@ -131,12 +262,19 @@ def _run_job(job_id: str, path: str, language: str | None, max_words: int) -> No
             if info.duration:
                 _update_job(job_id, progress=min(seg.end / info.duration, 1.0))
 
-        chunks = chunk_words(words, max_words=max_words)
+        script_lines = parse_script_lines(script)
+        if script_lines:
+            chunks = align_script_to_words(words, script_lines)
+            mode = "matcher"
+        else:
+            chunks = chunk_words(words, max_words=max_words)
+            mode = "auto"
         _update_job(
             job_id,
             status="done",
             progress=1.0,
             result={
+                "mode": mode,
                 "language": info.language,
                 "language_probability": round(info.language_probability, 3),
                 "duration": round(info.duration, 3),
@@ -153,14 +291,14 @@ def _run_job(job_id: str, path: str, language: str | None, max_words: int) -> No
             pass
 
 
-def _start_job(path: str, language: str, max_words: int) -> str:
+def _start_job(path: str, language: str, max_words: int, script: str = "") -> str:
     job_id = uuid.uuid4().hex[:12]
     with _jobs_lock:
         _jobs[job_id] = {"status": "queued", "progress": 0.0}
     lang = None if language == "auto" else language
     threading.Thread(
         target=_run_job,
-        args=(job_id, path, lang, max(1, min(max_words, 12))),
+        args=(job_id, path, lang, max(1, min(max_words, 12)), script),
         daemon=True,
     ).start()
     return job_id
@@ -217,12 +355,13 @@ async def upload_finish(
     upload_id: str = Form(...),
     language: str = Form("auto"),
     max_words: int = Form(4),
+    script: str = Form(""),
 ):
     with _uploads_lock:
         path = _uploads.pop(upload_id, None)
     if path is None:
         raise HTTPException(404, "upload not found")
-    return {"job_id": _start_job(path, language, max_words)}
+    return {"job_id": _start_job(path, language, max_words, script)}
 
 
 @app.get("/api/jobs/{job_id}")

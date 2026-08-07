@@ -33,6 +33,34 @@
   .tagline { color: var(--muted); font-size: 13px; margin-top: 3px; }
   main { max-width: 900px; margin: 0 auto; padding: 28px 20px 80px; }
 
+  .modes {
+    display: flex; gap: 8px; margin-bottom: 18px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 6px; width: fit-content;
+  }
+  .mode {
+    border: none; background: transparent; color: var(--muted);
+    padding: 9px 20px; border-radius: 8px; font-size: 14px;
+    font-weight: 600; cursor: pointer; transition: all .15s;
+  }
+  .mode.active { background: var(--accent); color: #06231a; }
+  .script-wrap { position: relative; margin-bottom: 18px; }
+  .script-wrap label {
+    display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px;
+  }
+  #script-box {
+    width: 100%; min-height: 150px; resize: vertical;
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 16px; font-size: 14px; line-height: 1.6;
+    font-family: Consolas, monospace; outline: none;
+    transition: filter .25s, opacity .25s;
+  }
+  #script-box:focus { border-color: var(--accent-2); }
+  .script-wrap.disabled #script-box {
+    filter: blur(3px); opacity: .45; pointer-events: none; user-select: none;
+  }
+  .script-wrap.disabled label { opacity: .45; }
   #dropzone {
     border: 2px dashed var(--border);
     border-radius: 16px;
@@ -97,6 +125,25 @@
 </header>
 
 <main>
+  <div class="modes">
+    <button class="mode active" id="mode-auto">🎙 Audio → SRT</button>
+    <button class="mode" id="mode-matcher">🧩 SRT Matcher</button>
+  </div>
+
+  <div class="script-wrap disabled" id="script-wrap">
+    <label>Script / Beats — har line ek SRT caption banegi (serial number apne aap hat jayega)</label>
+    <textarea id="script-box" spellcheck="false">SN	Beat
+1	Hook – attention grab
+2	Topic introduce
+3	Main problem
+4	Background
+5	Key event
+6	Escalation
+7	Twist
+8	Conclusion
+9	Final takeaway</textarea>
+  </div>
+
   <div id="dropzone">
     <div class="icon">🎬</div>
     <div class="big">Audio ya Video yahan drop karo</div>
@@ -148,6 +195,17 @@ let selectedFile = null;
 let data = null;
 let mediaRecorder = null;
 let busy = false;
+let mode = 'auto';
+
+/* ---------- mode menu ---------- */
+$('mode-auto').addEventListener('click', () => setMode('auto'));
+$('mode-matcher').addEventListener('click', () => setMode('matcher'));
+function setMode(m) {
+  mode = m;
+  $('mode-auto').classList.toggle('active', m === 'auto');
+  $('mode-matcher').classList.toggle('active', m === 'matcher');
+  $('script-wrap').classList.toggle('disabled', m === 'auto');
+}
 
 /* ---------- file selection → auto transcribe ---------- */
 const dz = $('dropzone');
@@ -163,6 +221,10 @@ $('file-input').addEventListener('change', e => {
 });
 function setFile(f) {
   if (busy) return;
+  if (mode === 'matcher' && !$('script-box').value.trim()) {
+    alert('SRT Matcher mode me pehle text box me script/beats daalo.');
+    return;
+  }
   selectedFile = f;
   dz.querySelector('.big').textContent = '🎧 ' + f.name;
   dz.querySelector('.sub').textContent = (f.size / 1048576).toFixed(1) + ' MB — processing…';
@@ -231,6 +293,7 @@ async function transcribe() {
     finFd.append('upload_id', upload_id);
     finFd.append('language', $('language').value);
     finFd.append('max_words', $('max-words').value);
+    if (mode === 'matcher') finFd.append('script', $('script-box').value);
     const finRes = await fetch('/api/upload/finish', { method: 'POST', body: finFd });
     if (!finRes.ok) throw new Error(await finRes.text());
     const { job_id } = await finRes.json();
@@ -269,6 +332,7 @@ function setProgress(pct, label) {
 /* ---------- result ---------- */
 function showResult() {
   $('meta').textContent =
+    (data.mode === 'matcher' ? '🧩 SRT Matcher · ' : '') +
     `Language: ${data.language} (${Math.round(data.language_probability * 100)}%) · ` +
     `Duration: ${fmtTime(data.duration)} · ${data.chunks.length} captions · ${data.words.length} words`;
   $('srt-preview').textContent = buildSrt();
