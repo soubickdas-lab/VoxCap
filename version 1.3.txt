@@ -30,7 +30,10 @@ v1.3 (7 Aug 2026)
 - Timing accuracy fix: default ab PRECISE mode hai — word timestamps
   100% accurate (batched fast mode timestamps aage-peeche karta tha).
   Fast mode wapas chahiye to VOXCAP_BATCH=16 env var set karo
-- Fill Gaps waisa hi button se hota hai (automatic nahi)
+- Fill Gaps button se hota hai (automatic nahi), aur ab sahi direction me:
+  har caption ka END aage badh ke agli caption ke START tak jata hai
+  (caption screen par rehta hai jab tak agla na aaye) — start points
+  original rehte hain, pehli caption 00:00:00,000 se
 
 v1.2 (7 Aug 2026)
 - Fill Gaps button (dono modes me) — har caption ka start pichhli caption

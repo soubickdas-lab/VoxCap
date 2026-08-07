@@ -365,12 +365,13 @@ function downloadSrt() {
   a.click();
 }
 function fillGaps(btn) {
-  // Har caption ka start = pichhli caption ka end; pehli caption 0 se.
-  // SRT me koi khaali gap nahi bachta — caption audio se pehle hi aa jata hai.
+  // Har caption ka END aage badha ke agli caption ke START tak le jate hain —
+  // caption screen par tab tak rehta hai jab tak agla na aa jaye.
+  // Pehli caption ka start 00:00:00,000 ho jata hai. Start points waise hi rehte hain.
   if (!data || !data.chunks.length) return;
   data.chunks[0].start = 0;
-  for (let i = 1; i < data.chunks.length; i++) {
-    data.chunks[i].start = data.chunks[i - 1].end;
+  for (let i = 0; i < data.chunks.length - 1; i++) {
+    data.chunks[i].end = data.chunks[i + 1].start;
   }
   $('srt-preview').textContent = buildSrt();
   btn.textContent = '✅ Gaps filled';
