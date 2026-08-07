@@ -1,0 +1,44 @@
+==========================================
+  VoxCap — Version 1.1
+==========================================
+
+Ye file batati hai ki aapke paas kaunsa version hai.
+Latest version yahan se milta hai:
+https://github.com/soubickdas-lab/VoxCap/releases/latest/download/VoxCap-share.zip
+Update karne ke liye bas update.bat double-click karo.
+
+------------------------------------------
+FEATURES
+------------------------------------------
+- Audio/Video → CapCut-style SRT captions (fully offline, Whisper large-v3)
+- Meaningful line breaks — har caption line ka apna matlab banta hai
+  (comma, connector words, pause par break; kabhi mid-phrase cut nahi)
+- SRT Matcher mode — apna script/beats do, har line audio se time-match hoti hai
+- Drop karte hi auto-transcribe, SRT auto-download + live preview
+- Hindi, English + 99 languages, auto-detect
+- NVIDIA GPU par batched inference (full GPU usage, ~5x fast)
+- GPU na ho to CPU par medium model se kaam chalta hai
+- Badi files (GB+) chunked upload se — Cloudflare 100MB limit ka fix
+- Start / Stop buttons — Stop turant pura process band karta hai
+- Caption length slider (40–90 characters)
+
+------------------------------------------
+CHANGELOG
+------------------------------------------
+
+v1.1 (7 Aug 2026)
+- CapCut jaisi lambi caption lines (~70 chars) — chhote 4-word chunks hataye
+- Meaningful breaks: comma/clause ke baad, when/and/but/ki/lekin jaise
+  words se pehle, ya saans ke pause par — dono lines balanced
+- GPU batched inference — transcription ~5x fast, full GPU utilization
+- Batched mode ka punctuation bug fix (lowercase/bina full-stop wala issue)
+- Stop button ab sach me pura process kill karta hai (127ms me)
+- Record Mic button hataya
+- SRT Matcher ka demo text story-script style ka
+- Version file system (ye file!)
+
+v1.0 (7 Aug 2026)
+- Pehla release: FastAPI + faster-whisper large-v3 (CUDA)
+- Browser UI, SRT download + preview, SRT Matcher, mic recording
+- Cloudflare tunnel se srt.aipoint.online par live
+- Portable setup: setup.bat, start-local.bat, update.bat, GitHub release

@@ -14,7 +14,9 @@ if %errorlevel% neq 0 (
 )
 
 powershell -NoProfile -Command "Expand-Archive '%TEMP%\voxcap-update.zip' -DestinationPath '%TEMP%\voxcap-update' -Force"
+del /q "version *.txt" >nul 2>&1
 xcopy /e /y /q "%TEMP%\voxcap-update\VoxCap\*" . >nul
+for %%f in ("version *.txt") do echo  Ab aap %%~nf par ho.
 del "%TEMP%\voxcap-update.zip" >nul 2>&1
 rmdir /s /q "%TEMP%\voxcap-update" >nul 2>&1
 
