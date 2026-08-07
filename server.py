@@ -43,8 +43,10 @@ APP_DIR = Path(__file__).parent
 MODEL_NAME = os.environ.get("VOXCAP_MODEL", "large-v3")
 # GPU na ho to chhota model — CPU par large-v3 bahut slow hota hai
 CPU_MODEL_NAME = os.environ.get("VOXCAP_CPU_MODEL", "medium")
-# Kitne 30s segments ek saath GPU par jayenge — jitna bada, utna full GPU usage
-BATCH_SIZE = int(os.environ.get("VOXCAP_BATCH", "16"))
+# 0 = precise mode (default): sequential decoding, word timestamps 100% accurate.
+# >0 = fast mode: batched inference — bahut fast lekin timestamps thoda
+# aage-peeche ho sakte hain (batched pipeline ki limitation).
+BATCH_SIZE = int(os.environ.get("VOXCAP_BATCH", "0"))
 
 app = FastAPI(title="VoxCap")
 
@@ -60,13 +62,15 @@ _worker_lock = threading.Lock()
 
 
 def _load_model():
-    """GPU par batched pipeline — segments parallel process hote hain,
-    GPU pura saturate hota hai (sequential se ~5x fast)."""
+    """Default: sequential decoding — word timestamps sabse accurate.
+    VOXCAP_BATCH>0 set karne par batched fast mode (timing thodi loose)."""
     from faster_whisper import BatchedInferencePipeline, WhisperModel
 
     try:
         model = WhisperModel(MODEL_NAME, device="cuda", compute_type="float16")
-        return BatchedInferencePipeline(model=model), "cuda", BATCH_SIZE
+        if BATCH_SIZE > 0:
+            return BatchedInferencePipeline(model=model), "cuda", BATCH_SIZE
+        return model, "cuda", None
     except Exception as exc:  # no CUDA / missing DLLs → CPU fallback
         print(f"[voxcap] CUDA unavailable ({exc}); falling back to CPU int8 ({CPU_MODEL_NAME})")
         return WhisperModel(CPU_MODEL_NAME, device="cpu", compute_type="int8"), "cpu", None

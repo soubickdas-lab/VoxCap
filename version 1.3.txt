@@ -1,5 +1,5 @@
 ==========================================
-  VoxCap — Version 1.2
+  VoxCap — Version 1.3
 ==========================================
 
 Ye file batati hai ki aapke paas kaunsa version hai.
@@ -25,6 +25,12 @@ FEATURES
 ------------------------------------------
 CHANGELOG
 ------------------------------------------
+
+v1.3 (7 Aug 2026)
+- Timing accuracy fix: default ab PRECISE mode hai — word timestamps
+  100% accurate (batched fast mode timestamps aage-peeche karta tha).
+  Fast mode wapas chahiye to VOXCAP_BATCH=16 env var set karo
+- Fill Gaps waisa hi button se hota hai (automatic nahi)
 
 v1.2 (7 Aug 2026)
 - Fill Gaps button (dono modes me) — har caption ka start pichhli caption
