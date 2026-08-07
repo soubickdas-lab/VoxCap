@@ -5,7 +5,9 @@ faster-whisper (large-v3 on GPU when available), and returns word-level
 timestamps grouped into short CapCut-style caption chunks.
 """
 
+import multiprocessing as mp
 import os
+import queue as queue_mod
 import re
 import sys
 import site
@@ -43,35 +45,25 @@ CPU_MODEL_NAME = os.environ.get("VOXCAP_CPU_MODEL", "medium")
 
 app = FastAPI(title="VoxCap")
 
-_model = None
-_model_lock = threading.Lock()
-_model_device = None
-
 _jobs: dict[str, dict] = {}
 _jobs_lock = threading.Lock()
 
-
-def _get_model():
-    global _model, _model_device
-    with _model_lock:
-        if _model is not None:
-            return _model
-        from faster_whisper import WhisperModel
-
-        try:
-            _model = WhisperModel(MODEL_NAME, device="cuda", compute_type="float16")
-            _model_device = "cuda"
-        except Exception as exc:  # no CUDA / missing DLLs → CPU fallback
-            print(f"[voxcap] CUDA unavailable ({exc}); falling back to CPU int8 ({CPU_MODEL_NAME})")
-            _model = WhisperModel(CPU_MODEL_NAME, device="cpu", compute_type="int8")
-            _model_device = "cpu"
-        return _model
+# Transcription alag process me chalti hai taaki Stop par process ko kill
+# karke pura kaam (GPU compute, decode, sab) turant band kiya ja sake.
+_worker = None      # mp.Process
+_task_q = None      # mp.Queue
+_result_q = None    # mp.Queue
+_worker_lock = threading.Lock()
 
 
-def _update_job(job_id: str, **fields) -> None:
-    with _jobs_lock:
-        if job_id in _jobs:
-            _jobs[job_id].update(fields)
+def _load_model():
+    from faster_whisper import WhisperModel
+
+    try:
+        return WhisperModel(MODEL_NAME, device="cuda", compute_type="float16"), "cuda"
+    except Exception as exc:  # no CUDA / missing DLLs → CPU fallback
+        print(f"[voxcap] CUDA unavailable ({exc}); falling back to CPU int8 ({CPU_MODEL_NAME})")
+        return WhisperModel(CPU_MODEL_NAME, device="cpu", compute_type="int8"), "cpu"
 
 
 _SENT_END = (".", "?", "!", "。", "؟", "।")
@@ -262,75 +254,126 @@ def align_script_to_words(words: list[dict], lines: list[str]) -> list[dict]:
     return chunks
 
 
-def _run_job(job_id: str, path: str, language: str | None, max_words: int,
-             script: str = "") -> None:
-    try:
-        _update_job(job_id, status="loading_model")
-        model = _get_model()
-        _update_job(job_id, status="transcribing", device=_model_device)
+def _worker_main(task_q, result_q) -> None:
+    """Alag process: model ek baar load hota hai, jobs process karta rehta hai."""
+    model, device = None, None
+    while True:
+        task = task_q.get()
+        if task is None:
+            return
+        job_id, path, language, max_words, script = task
+        try:
+            if model is None:
+                result_q.put((job_id, "status", "loading_model"))
+                model, device = _load_model()
+            result_q.put((job_id, "device", device))
+            result_q.put((job_id, "status", "transcribing"))
 
-        segments, info = model.transcribe(
-            path,
-            language=language,
-            word_timestamps=True,
-            vad_filter=True,
-        )
+            segments, info = model.transcribe(
+                path,
+                language=language,
+                word_timestamps=True,
+                vad_filter=True,
+            )
 
-        words: list[dict] = []
-        for seg in segments:
-            with _jobs_lock:
-                cancelled = _jobs.get(job_id, {}).get("cancel")
-            if cancelled:
-                _update_job(job_id, status="cancelled")
-                return
-            for w in seg.words or []:
-                words.append({
-                    "word": w.word.strip(),
-                    "start": round(w.start, 3),
-                    "end": round(w.end, 3),
-                })
-            if info.duration:
-                _update_job(job_id, progress=min(seg.end / info.duration, 1.0))
+            words: list[dict] = []
+            for seg in segments:
+                for w in seg.words or []:
+                    words.append({
+                        "word": w.word.strip(),
+                        "start": round(w.start, 3),
+                        "end": round(w.end, 3),
+                    })
+                if info.duration:
+                    result_q.put((job_id, "progress", min(seg.end / info.duration, 1.0)))
 
-        script_lines = parse_script_lines(script)
-        if script_lines:
-            chunks = align_script_to_words(words, script_lines)
-            mode = "matcher"
-        else:
-            chunks = chunk_words(words, max_words=max_words)
-            mode = "auto"
-        _update_job(
-            job_id,
-            status="done",
-            progress=1.0,
-            result={
+            script_lines = parse_script_lines(script)
+            if script_lines:
+                chunks = align_script_to_words(words, script_lines)
+                mode = "matcher"
+            else:
+                chunks = chunk_words(words, max_words=max_words)
+                mode = "auto"
+            result_q.put((job_id, "result", {
                 "mode": mode,
                 "language": info.language,
                 "language_probability": round(info.language_probability, 3),
                 "duration": round(info.duration, 3),
                 "words": words,
                 "chunks": chunks,
-            },
-        )
-    except Exception as exc:
-        _update_job(job_id, status="error", error=str(exc))
-    finally:
+            }))
+        except Exception as exc:
+            result_q.put((job_id, "error", str(exc)))
+        finally:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+
+
+def _listener(result_q, worker) -> None:
+    """Worker ke updates ko _jobs me bharta hai; worker mar jaye to jobs ko error."""
+    while True:
         try:
-            os.unlink(path)
-        except OSError:
-            pass
+            job_id, kind, val = result_q.get(timeout=1.0)
+        except queue_mod.Empty:
+            if result_q is not _result_q:
+                return  # ye worker replace ho chuka hai
+            if not worker.is_alive():
+                with _jobs_lock:
+                    for job in _jobs.values():
+                        if job.get("status") in ("queued", "loading_model", "transcribing"):
+                            job.update(status="error", error="worker process died")
+                return
+            continue
+        except (EOFError, OSError):
+            return
+        with _jobs_lock:
+            job = _jobs.get(job_id)
+            if job is None or job.get("status") == "cancelled":
+                continue
+            if kind == "status":
+                job["status"] = val
+            elif kind == "device":
+                job["device"] = val
+            elif kind == "progress":
+                job["progress"] = val
+            elif kind == "result":
+                job.update(status="done", progress=1.0, result=val)
+            elif kind == "error":
+                job.update(status="error", error=val)
+
+
+def _ensure_worker() -> None:
+    global _worker, _task_q, _result_q
+    with _worker_lock:
+        if _worker is not None and _worker.is_alive():
+            return
+        _task_q = mp.Queue()
+        _result_q = mp.Queue()
+        _worker = mp.Process(target=_worker_main, args=(_task_q, _result_q), daemon=True)
+        _worker.start()
+        threading.Thread(target=_listener, args=(_result_q, _worker), daemon=True).start()
+
+
+def _kill_worker() -> None:
+    """Stop = worker process ko kill karo — GPU/decode sab turant band.
+    Agla job naya worker banayega (model dobara load hoga)."""
+    global _worker
+    with _worker_lock:
+        if _worker is not None and _worker.is_alive():
+            _worker.terminate()
+            _worker.join(timeout=5)
+        _worker = None
 
 
 def _start_job(path: str, language: str, max_words: int, script: str = "") -> str:
     job_id = uuid.uuid4().hex[:12]
     with _jobs_lock:
-        _jobs[job_id] = {"status": "queued", "progress": 0.0}
+        _jobs[job_id] = {"status": "queued", "progress": 0.0, "path": path}
+    _ensure_worker()
     lang = None if language == "auto" else language
-    threading.Thread(
-        target=_run_job,
-        args=(job_id, path, lang, max(1, min(max_words, 12)), script),
-        daemon=True,
-    ).start()
+    _task_q.put((job_id, path, lang, max(1, min(max_words, 12)), script))
     return job_id
 
 
@@ -398,9 +441,9 @@ async def upload_finish(
 def job_status(job_id: str):
     with _jobs_lock:
         job = _jobs.get(job_id)
-    if job is None:
-        raise HTTPException(404, "job not found")
-    return job
+        if job is None:
+            raise HTTPException(404, "job not found")
+        return {k: v for k, v in job.items() if k != "path"}
 
 
 @app.post("/api/jobs/{job_id}/cancel")
@@ -409,7 +452,16 @@ def job_cancel(job_id: str):
         job = _jobs.get(job_id)
         if job is None:
             raise HTTPException(404, "job not found")
-        job["cancel"] = True
+        if job.get("status") in ("done", "error", "cancelled"):
+            return {"ok": True}
+        job["status"] = "cancelled"
+        path = job.get("path")
+    _kill_worker()  # process kill = GPU/decode sab kuch turant band
+    if path:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
     return {"ok": True}
 
 

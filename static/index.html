@@ -132,15 +132,14 @@
   <div class="script-wrap disabled" id="script-wrap">
     <label>Script / Beats — har line ek SRT caption banegi (serial number apne aap hat jayega)</label>
     <textarea id="script-box" spellcheck="false">SN	Beat
-1	Hook – attention grab
-2	Topic introduce
-3	Main problem
-4	Background
-5	Key event
-6	Escalation
-7	Twist
-8	Conclusion
-9	Final takeaway</textarea>
+1	On a cold November morning, a frantic 911 call shattered the silence... A young mother had vanished without a trace.
+2	Investigators searched every road, forest, and neighborhood, but there wasn't a single clue pointing to where she had gone.
+3	As the days turned into weeks, the case exploded across national headlines, and thousands joined the search.
+4	Then, out of nowhere, she reappeared with a shocking story that seemed almost impossible to believe.
+5	But detectives soon noticed details that didn't add up, and the investigation took a dramatic turn.
+6	Phone records, witness statements, and forensic evidence slowly unraveled the truth.
+7	The mystery wasn't about a kidnapping anymore—it had become one of the most controversial hoaxes in recent history.
+8	When the final evidence came to light, the public reaction was fierce, and the consequences changed her life forever.</textarea>
   </div>
 
   <div id="dropzone">
@@ -303,6 +302,7 @@ async function transcribe() {
 async function poll(jobId) {
   while (true) {
     await new Promise(r => setTimeout(r, 800));
+    if (stopRequested) { setProgress(0, '⏹ Stopped'); return; }
     const job = await (await fetch('/api/jobs/' + jobId)).json();
     if (job.status === 'queued') setProgress(26, 'Queued…');
     else if (job.status === 'loading_model') setProgress(28, 'Model load ho raha hai…');
