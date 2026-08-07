@@ -13,6 +13,7 @@ copy /y server.py "%STAGE%" >nul
 copy /y requirements.txt "%STAGE%" >nul
 copy /y setup.bat "%STAGE%" >nul
 copy /y start-local.bat "%STAGE%" >nul
+copy /y update.bat "%STAGE%" >nul
 copy /y README.md "%STAGE%" >nul
 copy /y static\index.html "%STAGE%\static" >nul
 powershell -NoProfile -Command "Compress-Archive -Path '%TEMP%\voxcap-share\VoxCap' -DestinationPath 'VoxCap-share.zip' -Force"

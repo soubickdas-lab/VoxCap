@@ -20,11 +20,16 @@ The large-v3 model is already downloaded to the Hugging Face cache — transcrip
 
 ## Kisi aur ko dena ho (share)
 
-`VoxCap-share.zip` bhejo (ya folder copy karo **without** `.venv` and `__pycache__`). Receiver bas:
+Download link (hamesha latest): https://github.com/soubickdas-lab/VoxCap/releases/latest/download/VoxCap-share.zip
+
+Receiver bas:
 
 1. Zip extract kare (kahin bhi — paths relative hain)
 2. `start-local.bat` double-click kare — setup apne aap ho jayega
 3. Pehli transcription par model download hota hai: NVIDIA GPU wale PC par large-v3 (~3 GB), bina GPU wale par medium (~1.5 GB, CPU par slow but works)
+4. **Update lene ke liye:** `update.bat` double-click — latest version GitHub se aa jayega (settings/venv/model sab safe rehte hain)
+
+Naya version dena ho to bas `publish.bat` chalao — zip rebuild + push + release update, sab ek saath.
 
 `start-live.bat` aur `cloudflare-config.yml` share zip me nahi hain — wo aapke Cloudflare account/domain se bandhe hain.
 
