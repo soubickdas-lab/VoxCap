@@ -74,37 +74,62 @@ def _update_job(job_id: str, **fields) -> None:
             _jobs[job_id].update(fields)
 
 
-def chunk_words(words: list[dict], max_words: int, max_chars: int = 32,
-                max_gap: float = 0.6) -> list[dict]:
-    """Group word timestamps into short CapCut-style caption chunks.
+_SENT_END = (".", "?", "!", "。", "؟", "।")
+_SOFT_END = (",", ";", ":", "،", "—", "-")
 
-    A chunk closes when it hits max_words / max_chars, the sentence ends,
-    or there is a silence gap longer than max_gap seconds.
+
+def chunk_words(words: list[dict], max_words: int, max_chars: int = 42,
+                hard_gap: float = 0.45) -> list[dict]:
+    """CapCut-style chunking: pehle saans/pause par todo, phir zaroorat ho to.
+
+    1) Hard breaks — jahan speaker ruk raha hai (gap >= hard_gap) ya sentence
+       khatam hua, wahan phrase cut hota hai. Yehi natural breaks hain.
+    2) Lambi phrase ho to usko best pause point par split karte hain —
+       sabse bada gap / comma, beech ke aas-paas — recursively, jab tak
+       har chunk max_words/max_chars ke andar na aa jaye.
     """
+    if not words:
+        return []
+
+    phrases: list[list[dict]] = []
+    cur: list[dict] = []
+    for w in words:
+        if cur and (w["start"] - cur[-1]["end"]) >= hard_gap:
+            phrases.append(cur)
+            cur = []
+        cur.append(w)
+        if w["word"].rstrip().endswith(_SENT_END):
+            phrases.append(cur)
+            cur = []
+    if cur:
+        phrases.append(cur)
+
+    def too_big(ph: list[dict]) -> bool:
+        return len(ph) > max_words or sum(len(w["word"]) + 1 for w in ph) - 1 > max_chars
+
+    def split(ph: list[dict]) -> list[list[dict]]:
+        if len(ph) <= 1 or not too_big(ph):
+            return [ph]
+        best_i, best_score = len(ph) // 2, -1.0
+        for i in range(1, len(ph)):
+            gap = ph[i]["start"] - ph[i - 1]["end"]
+            score = gap * 10
+            if ph[i - 1]["word"].rstrip().endswith(_SOFT_END):
+                score += 2.0
+            score += 1 - abs(i - len(ph) / 2) / len(ph)  # beech ke paas ho to behtar
+            if score > best_score:
+                best_score, best_i = score, i
+        return split(ph[:best_i]) + split(ph[best_i:])
+
     chunks: list[dict] = []
-    current: list[dict] = []
-
-    def close() -> None:
-        if not current:
-            return
-        chunks.append({
-            "start": current[0]["start"],
-            "end": current[-1]["end"],
-            "text": " ".join(w["word"] for w in current),
-            "words": list(current),
-        })
-        current.clear()
-
-    for word in words:
-        if current:
-            gap = word["start"] - current[-1]["end"]
-            length = sum(len(w["word"]) + 1 for w in current) + len(word["word"])
-            if gap > max_gap or len(current) >= max_words or length > max_chars:
-                close()
-        current.append(word)
-        if word["word"].rstrip().endswith((".", "?", "!", "。", "؟", "।")):
-            close()
-    close()
+    for ph in phrases:
+        for part in split(ph):
+            chunks.append({
+                "start": part[0]["start"],
+                "end": part[-1]["end"],
+                "text": " ".join(w["word"] for w in part),
+                "words": part,
+            })
     return chunks
 
 
@@ -253,6 +278,11 @@ def _run_job(job_id: str, path: str, language: str | None, max_words: int,
 
         words: list[dict] = []
         for seg in segments:
+            with _jobs_lock:
+                cancelled = _jobs.get(job_id, {}).get("cancel")
+            if cancelled:
+                _update_job(job_id, status="cancelled")
+                return
             for w in seg.words or []:
                 words.append({
                     "word": w.word.strip(),
@@ -371,6 +401,16 @@ def job_status(job_id: str):
     if job is None:
         raise HTTPException(404, "job not found")
     return job
+
+
+@app.post("/api/jobs/{job_id}/cancel")
+def job_cancel(job_id: str):
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+        if job is None:
+            raise HTTPException(404, "job not found")
+        job["cancel"] = True
+    return {"ok": True}
 
 
 @app.get("/")
