@@ -182,6 +182,7 @@
     <div class="meta" id="meta"></div>
     <div class="exports">
       <button class="btn-primary" onclick="downloadSrt()">⬇ Download SRT</button>
+      <button class="btn" id="gap-btn" onclick="fillGaps(this)">🧲 Fill Gaps</button>
       <button class="btn" onclick="copySrt(this)">📋 Copy</button>
     </div>
     <pre id="srt-preview"></pre>
@@ -325,6 +326,9 @@ function setProgress(pct, label) {
 
 /* ---------- result ---------- */
 function showResult() {
+  const gb = $('gap-btn');
+  gb.disabled = false;
+  gb.textContent = '🧲 Fill Gaps';
   $('meta').textContent =
     (data.mode === 'matcher' ? '🧩 SRT Matcher · ' : '') +
     `Language: ${data.language} (${Math.round(data.language_probability * 100)}%) · ` +
@@ -359,6 +363,18 @@ function downloadSrt() {
   const base = (selectedFile?.name || 'voxcap').replace(/\.[^.]+$/, '');
   a.download = base + '.srt';
   a.click();
+}
+function fillGaps(btn) {
+  // Har caption ka start = pichhli caption ka end; pehli caption 0 se.
+  // SRT me koi khaali gap nahi bachta — caption audio se pehle hi aa jata hai.
+  if (!data || !data.chunks.length) return;
+  data.chunks[0].start = 0;
+  for (let i = 1; i < data.chunks.length; i++) {
+    data.chunks[i].start = data.chunks[i - 1].end;
+  }
+  $('srt-preview').textContent = buildSrt();
+  btn.textContent = '✅ Gaps filled';
+  btn.disabled = true;
 }
 function copySrt(btn) {
   navigator.clipboard.writeText(buildSrt()).then(() => {

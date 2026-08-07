@@ -5,6 +5,7 @@ faster-whisper (large-v3 on GPU when available), and returns word-level
 timestamps grouped into short CapCut-style caption chunks.
 """
 
+import difflib
 import multiprocessing as mp
 import os
 import queue as queue_mod
@@ -208,8 +209,23 @@ def align_script_to_words(words: list[dict], lines: list[str]) -> list[dict]:
     if not script or not words or S * M > 20_000_000:
         return proportional()
 
-    # DP over script tokens x transcript words (match 0 / sub 1 / gap 1)
-    INF = float("inf")
+    # Fuzzy match — transcription ki chhoti galtiyan (spelling, endings)
+    # bhi match maani jaati hain, isse alignment kaafi accurate hota hai.
+    _fuzzy_cache: dict[tuple[str, str], bool] = {}
+
+    def is_match(a: str, b: str) -> bool:
+        if a == b:
+            return True
+        if not a or not b or abs(len(a) - len(b)) > max(2, len(a) // 2):
+            return False
+        key = (a, b)
+        hit = _fuzzy_cache.get(key)
+        if hit is None:
+            hit = difflib.SequenceMatcher(None, a, b).ratio() >= 0.75
+            _fuzzy_cache[key] = hit
+        return hit
+
+    # DP over script tokens x transcript words (match 0/0.25 / sub 1 / gap 1)
     prev = list(range(M + 1))
     back = [[0] * (M + 1) for _ in range(S + 1)]  # 1=diag, 2=up(skip tok), 3=left(skip word)
     for i in range(1, S + 1):
@@ -217,7 +233,14 @@ def align_script_to_words(words: list[dict], lines: list[str]) -> list[dict]:
         back[i][0] = 2
         tok = script[i - 1][1]
         for j in range(1, M + 1):
-            diag = prev[j - 1] + (0 if tok == word_toks[j - 1] else 1)
+            wt = word_toks[j - 1]
+            if tok == wt:
+                sub = 0.0
+            elif is_match(tok, wt):
+                sub = 0.25
+            else:
+                sub = 1.0
+            diag = prev[j - 1] + sub
             up = prev[j] + 1
             left = cur[j - 1] + 1
             best = min(diag, up, left)
@@ -232,7 +255,7 @@ def align_script_to_words(words: list[dict], lines: list[str]) -> list[dict]:
     while i > 0 or j > 0:
         move = back[i][j] if i > 0 else 3
         if move == 1:
-            if script[i - 1][1] == word_toks[j - 1]:
+            if is_match(script[i - 1][1], word_toks[j - 1]):
                 li = script[i - 1][0]
                 spans.setdefault(li, [j - 1, j - 1])
                 spans[li][0] = min(spans[li][0], j - 1)

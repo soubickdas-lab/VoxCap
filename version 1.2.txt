@@ -1,5 +1,5 @@
 ==========================================
-  VoxCap — Version 1.1
+  VoxCap — Version 1.2
 ==========================================
 
 Ye file batati hai ki aapke paas kaunsa version hai.
@@ -25,6 +25,13 @@ FEATURES
 ------------------------------------------
 CHANGELOG
 ------------------------------------------
+
+v1.2 (7 Aug 2026)
+- Fill Gaps button (dono modes me) — har caption ka start pichhli caption
+  ke end se jud jata hai, pehli caption 00:00:00,000 se shuru hoti hai.
+  SRT me koi khaali gap nahi bachta, caption audio se late nahi dikhta
+- SRT Matcher zyada accurate — fuzzy matching se transcription ki chhoti
+  galtiyan (spelling/word endings) bhi match ho jati hain
 
 v1.1 (7 Aug 2026)
 - CapCut jaisi lambi caption lines (~70 chars) — chhote 4-word chunks hataye
