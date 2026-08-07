@@ -2,3 +2,4 @@
 __pycache__/
 *.pyc
 VoxCap-share.zip
+cloudflare-config.yml

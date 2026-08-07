@@ -1,7 +1,0 @@
-tunnel: 20e5e83d-7a02-4ab4-914b-e2731dfe021b
-credentials-file: C:\Users\Soubickdas\.cloudflared\20e5e83d-7a02-4ab4-914b-e2731dfe021b.json
-
-ingress:
-  - hostname: srt.aipoint.online
-    service: http://127.0.0.1:8765
-  - service: http_status:404
