@@ -27,6 +27,9 @@ CHANGELOG
 ------------------------------------------
 
 v1.3 (7 Aug 2026)
+- SRT Matcher boundaries ekdum precise: har line audio me wahi se shuru
+  hoti hai jahan uska pehla word bola gaya, aur wahi khatam jahan aakhri
+  word khatam hua — chahe transcription me spelling alag ho
 - Timing accuracy fix: default ab PRECISE mode hai — word timestamps
   100% accurate (batched fast mode timestamps aage-peeche karta tha).
   Fast mode wapas chahiye to VOXCAP_BATCH=16 env var set karo

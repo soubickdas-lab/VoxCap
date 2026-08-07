@@ -252,18 +252,21 @@ def align_script_to_words(words: list[dict], lines: list[str]) -> list[dict]:
             back[i][j] = 1 if best == diag else (2 if best == up else 3)
         prev = cur
 
-    # backtrack — har line ke matched words ka span nikalo
+    # backtrack — alignment path ka HAR word (match ya substitution) uski
+    # line ke span me jata hai. Isse line ka start bilkul wahi hota hai
+    # jahan uska pehla word bola gaya, aur end wahi jahan aakhri word
+    # khatam hua — chahe transcription me spelling thodi alag ho.
     spans: dict[int, list[int]] = {}
     exact = 0
     i, j = S, M
     while i > 0 or j > 0:
         move = back[i][j] if i > 0 else 3
         if move == 1:
+            li = script[i - 1][0]
+            spans.setdefault(li, [j - 1, j - 1])
+            spans[li][0] = min(spans[li][0], j - 1)
+            spans[li][1] = max(spans[li][1], j - 1)
             if is_match(script[i - 1][1], word_toks[j - 1]):
-                li = script[i - 1][0]
-                spans.setdefault(li, [j - 1, j - 1])
-                spans[li][0] = min(spans[li][0], j - 1)
-                spans[li][1] = max(spans[li][1], j - 1)
                 exact += 1
             i, j = i - 1, j - 1
         elif move == 2:
