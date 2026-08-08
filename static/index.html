@@ -31,6 +31,16 @@
   .logo { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
   .logo span { color: var(--accent); }
   .tagline { color: var(--muted); font-size: 13px; margin-top: 3px; }
+  #stats { margin-left: auto; display: flex; gap: 8px; }
+  .stat {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 7px 12px; text-align: center; min-width: 62px;
+  }
+  .stat-label { display: block; font-size: 10px; color: var(--muted); letter-spacing: 1px; }
+  .stat-val { display: block; font-size: 15px; font-weight: 700; font-family: Consolas, monospace; }
+  .stat-val.ok { color: var(--accent); }
+  .stat-val.warn { color: #ffc14d; }
+  .stat-val.hot { color: var(--danger); }
   main { max-width: 900px; margin: 0 auto; padding: 28px 20px 80px; }
 
   .modes {
@@ -121,6 +131,11 @@
     <div class="logo">Vox<span>Cap</span></div>
     <div class="tagline">Audio daalo → CapCut-style SRT ready · powered by Whisper large-v3</div>
   </div>
+  <div id="stats">
+    <div class="stat"><span class="stat-label">CPU</span><span class="stat-val" id="stat-cpu">—</span></div>
+    <div class="stat"><span class="stat-label">GPU</span><span class="stat-val" id="stat-gpu">—</span></div>
+    <div class="stat"><span class="stat-label">RAM</span><span class="stat-val" id="stat-ram">—</span></div>
+  </div>
 </header>
 
 <main>
@@ -197,6 +212,24 @@ let busy = false;
 let mode = 'auto';
 let currentJobId = null;
 let stopRequested = false;
+
+/* ---------- system stats (top right) ---------- */
+function setStat(id, val) {
+  const el = $(id);
+  if (val === null || val === undefined) { el.textContent = '—'; el.className = 'stat-val'; return; }
+  el.textContent = val + '%';
+  el.className = 'stat-val ' + (val < 60 ? 'ok' : val < 85 ? 'warn' : 'hot');
+}
+async function pollStats() {
+  try {
+    const s = await (await fetch('/api/stats')).json();
+    setStat('stat-cpu', s.cpu);
+    setStat('stat-gpu', s.gpu);
+    setStat('stat-ram', s.ram);
+  } catch {}
+}
+pollStats();
+setInterval(pollStats, 2000);
 
 /* ---------- mode menu ---------- */
 $('mode-auto').addEventListener('click', () => setMode('auto'));

@@ -10,6 +10,7 @@ import multiprocessing as mp
 import os
 import queue as queue_mod
 import re
+import subprocess
 import sys
 import site
 import tempfile
@@ -523,6 +524,29 @@ def job_cancel(job_id: str):
         except OSError:
             pass
     return {"ok": True}
+
+
+@app.get("/api/stats")
+def system_stats():
+    """CPU / GPU / RAM usage % — UI ke top-right monitor ke liye."""
+    import psutil
+
+    cpu = psutil.cpu_percent(interval=None)
+    ram = psutil.virtual_memory().percent
+    gpu = vram = None
+    try:
+        flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=utilization.gpu,memory.used,memory.total",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=2, creationflags=flags,
+        )
+        util, mem_used, mem_total = out.stdout.strip().splitlines()[0].split(", ")
+        gpu = int(util)
+        vram = round(int(mem_used) / int(mem_total) * 100)
+    except Exception:
+        pass  # GPU nahi hai ya nvidia-smi nahi mila
+    return {"cpu": round(cpu), "ram": round(ram), "gpu": gpu, "vram": vram}
 
 
 @app.get("/")
