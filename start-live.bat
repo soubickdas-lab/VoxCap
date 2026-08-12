@@ -7,11 +7,19 @@ if not exist .venv\Scripts\python.exe (
 )
 title VoxCap - LIVE (srt.aipoint.online)
 echo.
-echo  Starting VoxCap server...
+echo  Purane processes clean ho rahe hain...
+taskkill /f /im cloudflared.exe >nul 2>&1
+for /f "tokens=5" %%p in ('netstat -aon ^| findstr ":8765 " ^| findstr LISTENING') do taskkill /f /pid %%p >nul 2>&1
+timeout /t 2 /nobreak >nul
+
+echo  VoxCap server start ho raha hai...
 start "VoxCap Server" cmd /k .venv\Scripts\python.exe server.py
-timeout /t 4 /nobreak >nul
+timeout /t 5 /nobreak >nul
+
+echo  Browser me live site khul rahi hai...
+start "" https://srt.aipoint.online
 echo.
-echo  Connecting Cloudflare tunnel: https://srt.aipoint.online
-echo  (Is window ko band karne se site offline ho jayegi)
+echo  Cloudflare tunnel connect ho raha hai: https://srt.aipoint.online
+echo  (Ye dono windows khuli rakhni hain - band karne se site offline ho jayegi)
 echo.
 "C:\Program Files (x86)\cloudflared\cloudflared.exe" tunnel --config "%~dp0cloudflare-config.yml" run voxcap
