@@ -1,5 +1,5 @@
 ==========================================
-  VoxCap — Version 1.4
+  VoxCap — Version 1.5
 ==========================================
 
 Ye file batati hai ki aapke paas kaunsa version hai.
@@ -25,6 +25,14 @@ FEATURES
 ------------------------------------------
 CHANGELOG
 ------------------------------------------
+
+v1.5 (12 Aug 2026)
+- Audio/Video player result me — SRT banne ke baad wahi play karke check karo
+- Live caption box player ke upar — playback ke saath real-time me dikhta
+  hai ki SRT us waqt kya keh rahi hai (audio-SRT sync verify karne ke liye)
+- Fill Gaps ab toggle hai — dobara click karo to original timings wapas
+- Gap-filled SRT download hone par filename ke end me "gap-filled" likha
+  aata hai (jaise "myvideo gap-filled.srt")
 
 v1.4 (8 Aug 2026)
 - Live system monitor UI ke top-right me: CPU / GPU / RAM usage % —

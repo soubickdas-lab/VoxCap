@@ -117,6 +117,17 @@
   #result { display: none; margin-top: 26px; }
   .meta { color: var(--muted); font-size: 13px; margin: 0 2px 14px; }
   .exports { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+  #live-caption {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 22px 20px; text-align: center; margin-bottom: 10px;
+    font-size: clamp(17px, 2.6vw, 24px); font-weight: 700; line-height: 1.4;
+    min-height: 74px; display: flex; align-items: center; justify-content: center;
+    color: var(--muted); transition: color .1s;
+  }
+  #live-caption.speaking { color: var(--accent); }
+  #player-box { margin-bottom: 16px; }
+  #player-box audio { width: 100%; }
+  #player-box video { width: 100%; max-height: 380px; border-radius: 12px; background: #000; }
   #srt-preview {
     background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
     padding: 16px 18px; font-family: Consolas, monospace; font-size: 13px;
@@ -195,6 +206,8 @@
 
   <div id="result">
     <div class="meta" id="meta"></div>
+    <div id="live-caption">▶ Play karo — jo bol raha hai wo yahan live aayega</div>
+    <div id="player-box"></div>
     <div class="exports">
       <button class="btn-primary" onclick="downloadSrt()">⬇ Download SRT</button>
       <button class="btn" id="gap-btn" onclick="fillGaps(this)">🧲 Fill Gaps</button>
@@ -359,9 +372,12 @@ function setProgress(pct, label) {
 
 /* ---------- result ---------- */
 function showResult() {
+  gapsFilled = false;
+  origTimes = null;
   const gb = $('gap-btn');
   gb.disabled = false;
   gb.textContent = '🧲 Fill Gaps';
+  buildPlayer();
   $('meta').textContent =
     (data.mode === 'matcher' ? '🧩 SRT Matcher · ' : '') +
     `Language: ${data.language} (${Math.round(data.language_probability * 100)}%) · ` +
@@ -394,22 +410,62 @@ function downloadSrt() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([buildSrt()], { type: 'text/plain' }));
   const base = (selectedFile?.name || 'voxcap').replace(/\.[^.]+$/, '');
-  a.download = base + '.srt';
+  a.download = base + (gapsFilled ? ' gap-filled' : '') + '.srt';
   a.click();
 }
+let gapsFilled = false;
+let origTimes = null;
+
 function fillGaps(btn) {
-  // Har caption ka END aage badha ke agli caption ke START tak le jate hain —
-  // caption screen par tab tak rehta hai jab tak agla na aa jaye.
-  // Pehli caption ka start 00:00:00,000 ho jata hai. Start points waise hi rehte hain.
+  // Toggle: pehla click — har caption ka END agli caption ke START tak
+  // extend hota hai (pehli caption 00:00:00,000 se). Dobara click — sab
+  // original timings par wapas.
   if (!data || !data.chunks.length) return;
-  data.chunks[0].start = 0;
-  for (let i = 0; i < data.chunks.length - 1; i++) {
-    data.chunks[i].end = data.chunks[i + 1].start;
+  if (!gapsFilled) {
+    origTimes = data.chunks.map(c => [c.start, c.end]);
+    data.chunks[0].start = 0;
+    for (let i = 0; i < data.chunks.length - 1; i++) {
+      data.chunks[i].end = data.chunks[i + 1].start;
+    }
+    gapsFilled = true;
+    btn.textContent = '✅ Gaps filled — undo';
+  } else {
+    data.chunks.forEach((c, i) => { c.start = origTimes[i][0]; c.end = origTimes[i][1]; });
+    gapsFilled = false;
+    btn.textContent = '🧲 Fill Gaps';
   }
   $('srt-preview').textContent = buildSrt();
-  btn.textContent = '✅ Gaps filled';
-  btn.disabled = true;
 }
+
+/* ---------- player + live caption (sync verify) ---------- */
+let media = null;
+
+function buildPlayer() {
+  const box = $('player-box');
+  if (media) { URL.revokeObjectURL(media.src); }
+  box.innerHTML = '';
+  media = document.createElement(selectedFile.type.startsWith('video') ? 'video' : 'audio');
+  media.src = URL.createObjectURL(selectedFile);
+  media.controls = true;
+  media.preload = 'metadata';
+  box.appendChild(media);
+  $('live-caption').textContent = '▶ Play karo — jo bol raha hai wo yahan live aayega';
+  $('live-caption').classList.remove('speaking');
+}
+
+setInterval(() => {
+  if (!media || !data || media.paused === undefined) return;
+  const t = media.currentTime;
+  const box = $('live-caption');
+  const chunk = data.chunks.find(c => t >= c.start && t <= c.end);
+  if (chunk) {
+    if (box.textContent !== chunk.text) box.textContent = chunk.text;
+    box.classList.add('speaking');
+  } else if (!media.paused) {
+    box.textContent = '· · ·';
+    box.classList.remove('speaking');
+  }
+}, 100);
 function copySrt(btn) {
   navigator.clipboard.writeText(buildSrt()).then(() => {
     btn.textContent = '✅ Copied';
