@@ -27,12 +27,15 @@ CHANGELOG
 ------------------------------------------
 
 v1.5 (12 Aug 2026)
-- Audio/Video player result me — SRT banne ke baad wahi play karke check karo
-- Live caption box player ke upar — playback ke saath real-time me dikhta
-  hai ki SRT us waqt kya keh rahi hai (audio-SRT sync verify karne ke liye)
+- Modern audio/video player result me — round play button, gradient seekbar,
+  time display; video files me video ke saath
+- Real-time sync check: play karte waqt SRT preview box me jo line bol
+  rahi hai wo highlight hoti hai + auto-scroll; kisi bhi entry par click
+  karo to audio wahi se chal padta hai
 - Fill Gaps ab toggle hai — dobara click karo to original timings wapas
 - Gap-filled SRT download hone par filename ke end me "gap-filled" likha
   aata hai (jaise "myvideo gap-filled.srt")
+- Cache fix: UI update ke baad purana page atakta nahi (no-cache header)
 
 v1.4 (8 Aug 2026)
 - Live system monitor UI ke top-right me: CPU / GPU / RAM usage % —

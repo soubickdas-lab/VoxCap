@@ -551,7 +551,9 @@ def system_stats():
 
 @app.get("/")
 def index():
-    return FileResponse(APP_DIR / "static" / "index.html")
+    # no-cache: UI update hote hi sabko fresh page mile, purana cache na atke
+    return FileResponse(APP_DIR / "static" / "index.html",
+                        headers={"Cache-Control": "no-cache, must-revalidate"})
 
 
 app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")

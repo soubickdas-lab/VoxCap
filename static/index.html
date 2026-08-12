@@ -117,23 +117,66 @@
   #result { display: none; margin-top: 26px; }
   .meta { color: var(--muted); font-size: 13px; margin: 0 2px 14px; }
   .exports { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
-  #live-caption {
-    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
-    padding: 22px 20px; text-align: center; margin-bottom: 10px;
-    font-size: clamp(17px, 2.6vw, 24px); font-weight: 700; line-height: 1.4;
-    min-height: 74px; display: flex; align-items: center; justify-content: center;
-    color: var(--muted); transition: color .1s;
-  }
-  #live-caption.speaking { color: var(--accent); }
+  /* ---- modern player ---- */
   #player-box { margin-bottom: 16px; }
-  #player-box audio { width: 100%; }
-  #player-box video { width: 100%; max-height: 380px; border-radius: 12px; background: #000; }
+  #player-box video {
+    width: 100%; max-height: 380px; border-radius: 16px 16px 0 0;
+    background: #000; display: block; cursor: pointer;
+  }
+  #player {
+    display: flex; align-items: center; gap: 16px;
+    background: linear-gradient(135deg, #1b1b26, #141420);
+    border: 1px solid var(--border); border-radius: 16px;
+    padding: 14px 20px;
+  }
+  #player.with-video { border-radius: 0 0 16px 16px; border-top: none; }
+  #pp {
+    width: 52px; height: 52px; border-radius: 50%; border: none; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--accent), #00b887);
+    color: #06231a; font-size: 19px; cursor: pointer;
+    box-shadow: 0 0 20px rgba(0, 224, 164, .35);
+    transition: transform .12s, box-shadow .12s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #pp:hover { transform: scale(1.07); box-shadow: 0 0 28px rgba(0, 224, 164, .55); }
+  #seek {
+    flex: 1; height: 8px; background: var(--panel-2); border-radius: 6px;
+    cursor: pointer; position: relative;
+  }
+  #seek-fill {
+    height: 100%; width: 0%; border-radius: 6px; position: relative;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    box-shadow: 0 0 10px rgba(0, 224, 164, .45);
+  }
+  #seek-fill::after {
+    content: ""; position: absolute; right: -7px; top: 50%;
+    transform: translateY(-50%); width: 14px; height: 14px;
+    border-radius: 50%; background: #fff;
+    box-shadow: 0 0 8px rgba(255, 255, 255, .6);
+  }
+  .ptime {
+    font-family: Consolas, monospace; font-size: 15px; font-weight: 700;
+    color: var(--text); min-width: 52px; text-align: center; flex-shrink: 0;
+  }
+  #ptime-cur { color: var(--accent); }
+  /* ---- SRT preview with live highlight ---- */
   #srt-preview {
     background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
-    padding: 16px 18px; font-family: Consolas, monospace; font-size: 13px;
-    line-height: 1.5; color: #c9c9d6; max-height: 420px; overflow: auto;
-    white-space: pre-wrap;
+    padding: 10px; font-family: Consolas, monospace; font-size: 13px;
+    max-height: 420px; overflow: auto;
   }
+  .srt-entry {
+    padding: 8px 12px; border-radius: 8px; cursor: pointer;
+    border: 1px solid transparent; transition: background .12s, border-color .12s;
+  }
+  .srt-entry:hover { background: var(--panel-2); }
+  .srt-entry.active {
+    background: #12241d; border-color: var(--accent);
+    box-shadow: 0 0 12px rgba(0, 224, 164, .15);
+  }
+  .srt-entry .head { color: var(--muted); font-size: 11.5px; margin-bottom: 2px; }
+  .srt-entry.active .head { color: var(--accent); }
+  .srt-entry .txt { color: #e8e8f0; line-height: 1.45; }
 </style>
 </head>
 <body>
@@ -206,14 +249,13 @@
 
   <div id="result">
     <div class="meta" id="meta"></div>
-    <div id="live-caption">▶ Play karo — jo bol raha hai wo yahan live aayega</div>
     <div id="player-box"></div>
     <div class="exports">
       <button class="btn-primary" onclick="downloadSrt()">⬇ Download SRT</button>
       <button class="btn" id="gap-btn" onclick="fillGaps(this)">🧲 Fill Gaps</button>
       <button class="btn" onclick="copySrt(this)">📋 Copy</button>
     </div>
-    <pre id="srt-preview"></pre>
+    <div id="srt-preview"></div>
   </div>
 </main>
 
@@ -382,7 +424,7 @@ function showResult() {
     (data.mode === 'matcher' ? '🧩 SRT Matcher · ' : '') +
     `Language: ${data.language} (${Math.round(data.language_probability * 100)}%) · ` +
     `Duration: ${fmtTime(data.duration)} · ${data.chunks.length} captions · ${data.words.length} words`;
-  $('srt-preview').textContent = buildSrt();
+  updateSrtPreview();
   $('result').style.display = 'block';
   downloadSrt();
   $('result').scrollIntoView({ behavior: 'smooth' });
@@ -434,38 +476,92 @@ function fillGaps(btn) {
     gapsFilled = false;
     btn.textContent = '🧲 Fill Gaps';
   }
-  $('srt-preview').textContent = buildSrt();
+  updateSrtPreview();
 }
 
-/* ---------- player + live caption (sync verify) ---------- */
+/* ---------- modern player + live SRT highlight ---------- */
 let media = null;
+
+function togglePlay() {
+  if (!media) return;
+  if (media.paused) media.play(); else media.pause();
+}
+
+function clock(s) {
+  if (!isFinite(s)) return '0:00';
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return m + ':' + String(sec).padStart(2, '0');
+}
 
 function buildPlayer() {
   const box = $('player-box');
-  if (media) { URL.revokeObjectURL(media.src); }
+  if (media) URL.revokeObjectURL(media.src);
   box.innerHTML = '';
-  media = document.createElement(selectedFile.type.startsWith('video') ? 'video' : 'audio');
+  const isVideo = selectedFile.type.startsWith('video');
+  media = document.createElement(isVideo ? 'video' : 'audio');
   media.src = URL.createObjectURL(selectedFile);
-  media.controls = true;
   media.preload = 'metadata';
-  box.appendChild(media);
-  $('live-caption').textContent = '▶ Play karo — jo bol raha hai wo yahan live aayega';
-  $('live-caption').classList.remove('speaking');
+  if (isVideo) {
+    box.appendChild(media);
+    media.addEventListener('click', togglePlay);
+  } else {
+    media.hidden = true;
+    box.appendChild(media);
+  }
+  const bar = document.createElement('div');
+  bar.id = 'player';
+  if (isVideo) bar.classList.add('with-video');
+  bar.innerHTML = '<button id="pp">▶</button><span class="ptime" id="ptime-cur">0:00</span><div id="seek"><div id="seek-fill"></div></div><span class="ptime" id="ptime-total">0:00</span>';
+  box.appendChild(bar);
+  $('pp').addEventListener('click', togglePlay);
+  $('seek').addEventListener('click', e => {
+    const r = e.currentTarget.getBoundingClientRect();
+    if (media.duration) media.currentTime = ((e.clientX - r.left) / r.width) * media.duration;
+  });
+  media.addEventListener('play', () => $('pp').textContent = '⏸');
+  media.addEventListener('pause', () => $('pp').textContent = '▶');
 }
 
 setInterval(() => {
-  if (!media || !data || media.paused === undefined) return;
+  if (!media || !data) return;
   const t = media.currentTime;
-  const box = $('live-caption');
-  const chunk = data.chunks.find(c => t >= c.start && t <= c.end);
-  if (chunk) {
-    if (box.textContent !== chunk.text) box.textContent = chunk.text;
-    box.classList.add('speaking');
-  } else if (!media.paused) {
-    box.textContent = '· · ·';
-    box.classList.remove('speaking');
+  const fill = document.getElementById('seek-fill');
+  if (fill && media.duration) {
+    fill.style.width = (t / media.duration * 100) + '%';
+    document.getElementById('ptime-cur').textContent = clock(t);
+    document.getElementById('ptime-total').textContent = clock(media.duration);
   }
+  // neeche SRT box me current line highlight + auto-scroll
+  const idx = data.chunks.findIndex(c => t >= c.start && t <= c.end);
+  document.querySelectorAll('.srt-entry').forEach(el => {
+    const on = +el.dataset.i === idx;
+    if (on && !el.classList.contains('active') && !media.paused) {
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+    el.classList.toggle('active', on);
+  });
 }, 100);
+
+function updateSrtPreview() {
+  const box = $('srt-preview');
+  box.innerHTML = '';
+  data.chunks.forEach((c, i) => {
+    const div = document.createElement('div');
+    div.className = 'srt-entry';
+    div.dataset.i = i;
+    const head = document.createElement('div');
+    head.className = 'head';
+    head.textContent = (i + 1) + '   ' + srtTime(c.start) + ' --> ' + srtTime(c.end);
+    const txt = document.createElement('div');
+    txt.className = 'txt';
+    txt.textContent = c.text;
+    div.append(head, txt);
+    div.addEventListener('click', () => {
+      if (media) { media.currentTime = c.start + 0.01; media.play(); }
+    });
+    box.appendChild(div);
+  });
+}
 function copySrt(btn) {
   navigator.clipboard.writeText(buildSrt()).then(() => {
     btn.textContent = '✅ Copied';
