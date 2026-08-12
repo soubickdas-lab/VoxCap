@@ -155,8 +155,8 @@
     box-shadow: 0 0 8px rgba(255, 255, 255, .6);
   }
   .ptime {
-    font-family: Consolas, monospace; font-size: 15px; font-weight: 700;
-    color: var(--text); min-width: 52px; text-align: center; flex-shrink: 0;
+    font-family: Consolas, monospace; font-size: 13.5px; font-weight: 700;
+    color: var(--text); min-width: 108px; text-align: center; flex-shrink: 0;
   }
   #ptime-cur { color: var(--accent); }
   /* ---- SRT preview with live highlight ---- */
@@ -511,7 +511,7 @@ function buildPlayer() {
   const bar = document.createElement('div');
   bar.id = 'player';
   if (isVideo) bar.classList.add('with-video');
-  bar.innerHTML = '<button id="pp">▶</button><span class="ptime" id="ptime-cur">0:00</span><div id="seek"><div id="seek-fill"></div></div><span class="ptime" id="ptime-total">0:00</span>';
+  bar.innerHTML = '<button id="pp">▶</button><span class="ptime" id="ptime-cur">00:00:00,000</span><div id="seek"><div id="seek-fill"></div></div><span class="ptime" id="ptime-total">00:00:00,000</span>';
   box.appendChild(bar);
   $('pp').addEventListener('click', togglePlay);
   $('seek').addEventListener('click', e => {
@@ -528,8 +528,8 @@ setInterval(() => {
   const fill = document.getElementById('seek-fill');
   if (fill && media.duration) {
     fill.style.width = (t / media.duration * 100) + '%';
-    document.getElementById('ptime-cur').textContent = clock(t);
-    document.getElementById('ptime-total').textContent = clock(media.duration);
+    document.getElementById('ptime-cur').textContent = srtTime(t);
+    document.getElementById('ptime-total').textContent = srtTime(media.duration);
   }
   // neeche SRT box me current line highlight + auto-scroll
   const idx = data.chunks.findIndex(c => t >= c.start && t <= c.end);
