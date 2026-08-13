@@ -115,7 +115,17 @@
   #progress-label { font-size: 13px; color: var(--muted); margin-top: 8px; }
 
   #result { display: none; margin-top: 26px; }
-  .meta { color: var(--muted); font-size: 13px; margin: 0 2px 14px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 2px 14px; }
+  .pill {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 999px;
+    padding: 6px 14px; font-size: 13px; color: var(--muted);
+  }
+  .pill b { color: var(--text); font-size: 14px; }
+  .pill.big { border-color: var(--accent); }
+  .pill.big b { color: var(--accent); font-size: 16px; }
+  .pill.good b { color: var(--accent); }
+  .pill.mid b { color: #ffc14d; }
+  .pill.bad b { color: var(--danger); }
   .exports { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
   /* ---- modern player ---- */
   #player-box { margin-bottom: 16px; }
@@ -420,10 +430,15 @@ function showResult() {
   gb.disabled = false;
   gb.textContent = '🧲 Fill Gaps';
   buildPlayer();
-  $('meta').textContent =
-    (data.mode === 'matcher' ? '🧩 SRT Matcher · ' : '') +
-    `Language: ${data.language} (${Math.round(data.language_probability * 100)}%) · ` +
-    `Duration: ${fmtTime(data.duration)} · ${data.chunks.length} captions · ${data.words.length} words`;
+  const cov = data.coverage;
+  const covCls = cov === undefined ? '' : (cov >= 99 ? 'good' : cov >= 90 ? 'mid' : 'bad');
+  $('meta').innerHTML =
+    `<span class="pill big"><b>${data.chunks.length}</b> SRT lines</span>` +
+    (cov !== undefined ? `<span class="pill ${covCls}"><b>${cov}%</b> ${data.mode === 'matcher' ? 'lines audio se matched' : 'text captured'}</span>` : '') +
+    (data.mode === 'matcher' ? '<span class="pill">🧩 SRT Matcher</span>' : '') +
+    `<span class="pill">${data.language} · ${Math.round(data.language_probability * 100)}%</span>` +
+    `<span class="pill">${fmtTime(data.duration)}</span>` +
+    `<span class="pill">${data.words.length} words</span>`;
   updateSrtPreview();
   $('result').style.display = 'block';
   downloadSrt();

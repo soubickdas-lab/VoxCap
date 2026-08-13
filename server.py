@@ -204,7 +204,7 @@ def align_script_to_words(words: list[dict], lines: list[str]) -> list[dict]:
             acc += len(line)
             e = t0 + span * acc / total
             chunks.append({"start": round(s, 3), "end": round(e, 3),
-                           "text": line, "words": []})
+                           "text": line, "words": [], "matched": False})
         return chunks
 
     script = [(li, _norm_tok(t)) for li, line in enumerate(lines)
@@ -284,6 +284,7 @@ def align_script_to_words(words: list[dict], lines: list[str]) -> list[dict]:
     for li, (j0, j1) in spans.items():
         starts[li] = words[j0]["start"]
         ends[li] = words[j1]["end"]
+    matched = [s is not None for s in starts]  # kaunsi line sach me audio se mili
 
     audio_start, audio_end = words[0]["start"], words[-1]["end"]
     k = 0
@@ -311,8 +312,42 @@ def align_script_to_words(words: list[dict], lines: list[str]) -> list[dict]:
         e = max(ends[li], s + 0.2)
         prev_end = e
         chunks.append({"start": round(s, 3), "end": round(e, 3),
-                       "text": line, "words": []})
+                       "text": line, "words": [], "matched": matched[li]})
     return chunks
+
+
+def segment_words(seg) -> list[dict]:
+    """Segment se word-timestamps nikalo — text KABHI drop na ho.
+
+    Whisper kabhi-kabhi kisi segment ke word timestamps nahi de pata
+    (dheemi awaaz, chhota segment). Pehle wo poora segment gayab ho jata
+    tha. Ab aise case me segment ka text uske start-end ke beech baant
+    dete hain, taaki ek bhi line miss na ho.
+    """
+    out: list[dict] = []
+    good = [w for w in (seg.words or [])
+            if w.word and w.word.strip() and w.start is not None and w.end is not None]
+    if good:
+        for w in good:
+            s, e = float(w.start), float(w.end)
+            out.append({"word": w.word.strip(), "start": round(s, 3),
+                        "end": round(max(e, s + 0.01), 3)})
+        return out
+
+    text = (seg.text or "").strip()
+    if not text:
+        return out
+    toks = text.split()
+    s, e = float(seg.start), float(seg.end)
+    span = max(e - s, 0.01)
+    total = sum(len(t) for t in toks) or 1
+    acc = 0
+    for t in toks:
+        ws = s + span * acc / total
+        acc += len(t)
+        out.append({"word": t, "start": round(ws, 3),
+                    "end": round(s + span * acc / total, 3)})
+    return out
 
 
 def _worker_main(task_q, result_q) -> None:
@@ -330,23 +365,49 @@ def _worker_main(task_q, result_q) -> None:
             result_q.put((job_id, "device", device))
             result_q.put((job_id, "status", "transcribing"))
 
-            kwargs = dict(language=language, word_timestamps=True, vad_filter=True)
+            # Accuracy-first settings — audio ka koi hissa chhoote nahi:
+            #  condition_on_previous_text=False → ek kharab segment ke baad
+            #    model bhatak ke aage ka audio skip nahi karta
+            #  no_speech/log_prob thresholds dheele → halki awaaz wale
+            #    segments "silence" maan ke discard nahi hote
+            #  VAD kam aggressive → dheemi baat kati nahi jaati
+            kwargs = dict(
+                language=language,
+                word_timestamps=True,
+                beam_size=5,
+                condition_on_previous_text=False,
+                no_speech_threshold=0.85,
+                log_prob_threshold=-1.5,
+                compression_ratio_threshold=2.8,
+                vad_filter=True,
+                vad_parameters=dict(threshold=0.25,
+                                    min_silence_duration_ms=1500,
+                                    speech_pad_ms=800),
+            )
             if batch:
                 # without_timestamps=True (batched default) punctuation kha jata hai
                 kwargs["batch_size"] = batch
                 kwargs["without_timestamps"] = False
-            segments, info = model.transcribe(path, **kwargs)
+            try:
+                segments, info = model.transcribe(path, **kwargs)
+            except TypeError:  # purana faster-whisper — extra options gira do
+                for k in ("vad_parameters", "compression_ratio_threshold",
+                          "log_prob_threshold", "no_speech_threshold"):
+                    kwargs.pop(k, None)
+                segments, info = model.transcribe(path, **kwargs)
 
             words: list[dict] = []
             for seg in segments:
-                for w in seg.words or []:
-                    words.append({
-                        "word": w.word.strip(),
-                        "start": round(w.start, 3),
-                        "end": round(w.end, 3),
-                    })
+                words.extend(segment_words(seg))
                 if info.duration:
                     result_q.put((job_id, "progress", min(seg.end / info.duration, 1.0)))
+
+            # timings sanitize — overlap/ulta time se chunks kharab na hon
+            for i, w in enumerate(words):
+                if i and w["start"] < words[i - 1]["start"]:
+                    w["start"] = words[i - 1]["start"]
+                if w["end"] <= w["start"]:
+                    w["end"] = round(w["start"] + 0.05, 3)
 
             script_lines = parse_script_lines(script)
             if script_lines:
@@ -355,11 +416,22 @@ def _worker_main(task_q, result_q) -> None:
             else:
                 chunks = chunk_words(words, max_chars=max_chars)
                 mode = "auto"
+            # coverage —
+            #  auto mode: transcript ka kitna text captions me pahuncha (100% hona chahiye)
+            #  matcher:   script ki kitni lines sach me audio se align hui
+            if mode == "matcher":
+                total = len(chunks) or 1
+                coverage = round(sum(1 for c in chunks if c.get("matched")) / total * 100)
+            else:
+                in_chunks = sum(len(c["words"]) for c in chunks)
+                coverage = round(in_chunks / len(words) * 100) if words else 100
+
             result_q.put((job_id, "result", {
                 "mode": mode,
                 "language": info.language,
                 "language_probability": round(info.language_probability, 3),
                 "duration": round(info.duration, 3),
+                "coverage": coverage,
                 "words": words,
                 "chunks": chunks,
             }))

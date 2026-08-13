@@ -1,5 +1,5 @@
 ==========================================
-  VoxCap — Version 1.5
+  VoxCap — Version 1.6
 ==========================================
 
 Ye file batati hai ki aapke paas kaunsa version hai.
@@ -15,8 +15,10 @@ FEATURES
   (comma, connector words, pause par break; kabhi mid-phrase cut nahi)
 - SRT Matcher mode — apna script/beats do, har line audio se time-match hoti hai
 - Drop karte hi auto-transcribe, SRT auto-download + live preview
+- Coverage % — verify karo ki pura text captions me aaya (100% hona chahiye)
+- Modern player + real-time highlight se audio-SRT sync check
 - Hindi, English + 99 languages, auto-detect
-- NVIDIA GPU par batched inference (full GPU usage, ~5x fast)
+- Precise word timestamps (GPU par accurate mode)
 - GPU na ho to CPU par medium model se kaam chalta hai
 - Badi files (GB+) chunked upload se — Cloudflare 100MB limit ka fix
 - Start / Stop buttons — Stop turant pura process band karta hai
@@ -25,6 +27,22 @@ FEATURES
 ------------------------------------------
 CHANGELOG
 ------------------------------------------
+
+v1.6 (12 Aug 2026)  — ACCURACY UPDATE
+- BUG FIX (bada): jin segments ke word-timestamps nahi bante the, unka
+  POORA text chup-chaap gayab ho jata tha — isi se SRT lines miss ho rahi
+  thi. Ab aise case me segment ka text uske time span me baant diya jata
+  hai. Ek bhi line ab drop nahi hoti
+- Dheemi awaaz ab nahi katati: VAD kam aggressive kiya (threshold 0.5 se
+  0.25, zyada padding) — halki/soft speech bhi transcribe hoti hai
+- Audio skip hona band: condition_on_previous_text=False — ek kharab
+  segment ke baad model bhatak ke aage ka audio chhod nahi deta
+- no_speech / log_prob thresholds dheele — halke segments "silence" maan
+  ke discard nahi hote
+- Timestamps sanitize — ulte/overlapping time se captions kharab nahi hote
+- UI me ab bade pills: total SRT lines, coverage %, language, duration, words
+- Coverage %: auto mode me "text captured" (100% = kuch miss nahi),
+  matcher mode me "lines audio se matched"
 
 v1.5 (12 Aug 2026)
 - Modern audio/video player result me — round play button, gradient seekbar,
