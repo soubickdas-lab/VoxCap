@@ -38,8 +38,10 @@ v1.7 (18 Aug 2026)  - AI AUDIO
   taaki CapCut-style breaks aur timing apne control me rahe
 - Voice library: provider (ElevenLabs/Minimax/Edge/Kokoro/clones/FishAudio),
   search, aur har voice ke aage sample sunne ka button
-- Voice ID khud daal sakte ho, ya "Save voice" se apni pasand ki voices
-  save karke rakho - agli baar ek click me use ho jaayengi
+- Voice ID paste karte hi us voice ka naam, language/gender aur "Sample"
+  button khud aa jaate hain (galat ID par turant bata deta hai)
+- "Save voice" par naam poochha jaata hai (resolved naam pehle se bhara
+  hota hai) - saved voices chips ki tarah dikhte hain, ek click me use
 - Speed control 0.5x - 1.5x
 - Text box me tags apne aap RANGEEN dikhte hain jaise hi paste karo:
   [excited] jaise expression tags purple, [pause]/[speed_slow] jaise

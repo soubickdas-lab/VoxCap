@@ -193,6 +193,14 @@
     font-family: Consolas, monospace;
   }
   .ai-fields input[type=text]:focus { border-color: var(--accent-2); }
+  #ai-voice-info {
+    margin-top: 8px; font-size: 12.5px; min-height: 20px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  #ai-voice-info .ok { color: var(--accent); }
+  #ai-voice-info .bad { color: var(--danger); }
+  #ai-voice-info .dim { color: var(--muted); }
+  #ai-voice-info button { padding: 3px 10px !important; font-size: 11.5px !important; }
   #ai-voice-list {
     max-height: 230px; overflow: auto; border: 1px solid var(--border);
     border-radius: 10px; margin-bottom: 14px; display: none;
@@ -339,6 +347,7 @@
       <div>
         <label>Voice ID</label>
         <input type="text" id="ai-voice-id" size="34" placeholder="elevenlabs_... / minimax_... / edge_...">
+        <div id="ai-voice-info"></div>
       </div>
       <div>
         <label>Voice dhundo</label>
@@ -858,6 +867,7 @@ function voiceRow(v) {
     $('ai-voice-id').value = v.voice_id;
     $('ai-voice-id').dataset.name = v.name || '';
     $('ai-voice-id').dataset.preview = v.preview_url || '';
+    resolveVoice();
     document.querySelectorAll('.voice').forEach(x => x.style.background = '');
     row.style.background = '#12241d';
   });
@@ -900,6 +910,7 @@ function renderSaved(list) {
     name.addEventListener('click', () => {
       $('ai-voice-id').value = v.voice_id;
       $('ai-voice-id').dataset.name = v.name || '';
+      resolveVoice();
       if (v.speed) { $('ai-speed').value = v.speed; $('ai-speed-val').textContent = Number(v.speed).toFixed(2); }
     });
     chip.appendChild(name);
@@ -926,12 +937,61 @@ function renderSaved(list) {
   });
 }
 
+/* voice ID daalte hi us voice ki detail + sample khud aa jaye */
+let resolveTimer = null;
+
+$('ai-voice-id').addEventListener('input', () => {
+  clearTimeout(resolveTimer);
+  resolveTimer = setTimeout(resolveVoice, 450);
+});
+$('ai-voice-id').addEventListener('paste', () => {
+  clearTimeout(resolveTimer);
+  resolveTimer = setTimeout(resolveVoice, 120);
+});
+
+async function resolveVoice() {
+  const box = $('ai-voice-info');
+  const id = $('ai-voice-id').value.trim();
+  if (!id) { box.innerHTML = ''; return; }
+  box.innerHTML = '<span class="dim">dhundh rahe hain…</span>';
+  try {
+    const r = await fetch('/api/ai33/voice?voice_id=' + encodeURIComponent(id));
+    if (!r.ok) throw new Error((await r.json()).detail || 'nahi mili');
+    const v = await r.json();
+    $('ai-voice-id').dataset.name = v.name || '';
+    $('ai-voice-id').dataset.preview = v.preview_url || '';
+    box.innerHTML = '';
+    const tick = document.createElement('span');
+    tick.className = 'ok';
+    tick.textContent = '\u2713 ' + (v.name || id);
+    box.appendChild(tick);
+    const meta = document.createElement('span');
+    meta.className = 'dim';
+    meta.textContent = [v.language, v.gender].filter(Boolean).join(' \u00b7 ');
+    box.appendChild(meta);
+    if (v.preview_url) {
+      const pv = document.createElement('button');
+      pv.className = 'btn';
+      pv.textContent = '\u25b6 Sample';
+      pv.addEventListener('click', () => playPreview(v.preview_url, pv));
+      box.appendChild(pv);
+    }
+  } catch (err) {
+    $('ai-voice-id').dataset.name = '';
+    $('ai-voice-id').dataset.preview = '';
+    box.innerHTML = '<span class="bad">\u2717 ' + err.message + '</span>';
+  }
+}
+
 $('ai-save-voice').addEventListener('click', async () => {
   const id = $('ai-voice-id').value.trim();
   if (!id) return alert('Pehle voice ID daalo ya list se chuno.');
+  const suggested = $('ai-voice-id').dataset.name || id;
+  const name = prompt('Is voice ko kis naam se save karein?', suggested);
+  if (name === null) return;                       // cancel
   const fd = new FormData();
   fd.append('voice_id', id);
-  fd.append('name', $('ai-voice-id').dataset.name || id);
+  fd.append('name', name.trim() || suggested);
   fd.append('speed', $('ai-speed').value);
   fd.append('preview_url', $('ai-voice-id').dataset.preview || '');
   const r = await (await fetch('/api/ai33/saved', { method: 'POST', body: fd })).json();

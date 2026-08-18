@@ -713,6 +713,14 @@ def ai33_voices(provider: str = "elevenlabs", search: str = "", page: int = 1,
         raise HTTPException(502, str(exc))
 
 
+@app.get("/api/ai33/voice")
+def ai33_voice_one(voice_id: str):
+    try:
+        return ai33.resolve_voice(voice_id)
+    except Exception as exc:
+        raise HTTPException(404, str(exc))
+
+
 @app.get("/api/ai33/saved")
 def ai33_saved():
     return {"voices": ai33.load_saved()}

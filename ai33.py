@@ -104,6 +104,29 @@ def voices(provider="elevenlabs", search="", page=1, page_size=30,
     return {"voices": out, "pagination": r.get("pagination", {})}
 
 
+def resolve_voice(voice_id: str) -> dict:
+    """Sirf voice_id se us voice ki detail (naam, preview) nikaalo.
+
+    voice_id ka prefix hi provider batata hai (elevenlabs_, minimax_,
+    edge_, kokoro_, clone_, vbee_, fishaudio_), aur baaki hissa search
+    me daal dete hain.
+    """
+    voice_id = (voice_id or "").strip()
+    if "_" not in voice_id:
+        raise Ai33Error("voice_id me provider prefix hona chahiye "
+                        "(jaise elevenlabs_… / minimax_… / edge_…)")
+    provider, raw = voice_id.split("_", 1)
+    if provider not in PROVIDERS:
+        raise Ai33Error(f"unknown provider prefix: {provider}_")
+    found = voices(provider=provider, search=raw, page_size=20)["voices"]
+    for v in found:
+        if v["voice_id"] == voice_id:
+            return v
+    if found:
+        return found[0]
+    raise Ai33Error("ye voice nahi mili")
+
+
 def submit_tts(text: str, voice_id: str, speed: float = 1.0) -> str:
     """TTS task banao — task_id return karta hai."""
     r = _request("POST", "/v3/text-to-speech", form={
