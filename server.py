@@ -10,10 +10,12 @@ import multiprocessing as mp
 import os
 import queue as queue_mod
 import re
+import shutil
 import subprocess
 import sys
 import site
 import tempfile
+import time
 import threading
 import uuid
 from pathlib import Path
@@ -582,7 +584,7 @@ def job_status(job_id: str):
         job = _jobs.get(job_id)
         if job is None:
             raise HTTPException(404, "job not found")
-        return {k: v for k, v in job.items() if k != "path"}
+        return {k: v for k, v in job.items() if k not in ("path", "audio_path")}
 
 
 @app.post("/api/jobs/{job_id}/cancel")
@@ -646,6 +648,21 @@ def _set(job_id: str, **fields) -> None:
             _jobs[job_id].update(fields)
 
 
+GEN_DIR = Path(tempfile.gettempdir()) / "voxcap-generated"
+GEN_DIR.mkdir(exist_ok=True)
+
+
+def _prune_generated(max_age_hours: int = 12) -> None:
+    """Purani generated audio files hata do — disk bharti na rahe."""
+    cutoff = time.time() - max_age_hours * 3600
+    for f in GEN_DIR.iterdir():
+        try:
+            if f.is_file() and f.stat().st_mtime < cutoff:
+                f.unlink()
+        except OSError:
+            pass
+
+
 def _cancelled(job_id: str) -> bool:
     with _jobs_lock:
         return _jobs.get(job_id, {}).get("status") == "cancelled"
@@ -681,17 +698,40 @@ def _generate_then_transcribe(job_id: str, text: str, voice_id: str, speed: floa
 
         _set(job_id, status="downloading", progress=1.0, note="audio download ho raha hai…")
         suffix = ".mp3" if ".mp3" in audio_url.lower() else ".wav"
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            tmp_path = tmp.name
-        ai33.download(audio_url, tmp_path)
+        _prune_generated()
+        keep_path = str(GEN_DIR / f"{job_id}{suffix}")
+        ai33.download(audio_url, keep_path)
 
         if _cancelled(job_id):
-            os.unlink(tmp_path)
+            os.unlink(keep_path)
             return
-        _set(job_id, audio_url=audio_url, note="")
+
+        # worker apni copy delete kar deta hai, isliye usko alag copy do
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp_path = tmp.name
+        shutil.copyfile(keep_path, tmp_path)
+
+        _set(job_id, audio_url=audio_url, audio_path=keep_path,
+             audio_ext=suffix, note="")
         _start_job(tmp_path, language, max_chars, script, job_id=job_id)
     except Exception as exc:
         _set(job_id, status="error", error=str(exc))
+
+
+@app.get("/api/audio/{job_id}")
+def job_audio(job_id: str, dl: int = 0, name: str = ""):
+    """Generated audio apne server se do — same-origin hone se browser
+    isse seedha download kar sakta hai (CDN cross-origin par nahi hota)."""
+    with _jobs_lock:
+        job = _jobs.get(job_id) or {}
+    path = job.get("audio_path")
+    if not path or not os.path.exists(path):
+        raise HTTPException(404, "audio nahi mila")
+    ext = job.get("audio_ext", ".mp3")
+    media = "audio/mpeg" if ext == ".mp3" else "audio/wav"
+    safe = re.sub(r"[^\w\s.-]", "", name).strip() or "voxcap-audio"
+    return FileResponse(path, media_type=media,
+                        filename=(safe + ext) if dl else None)
 
 
 @app.get("/api/ai33/status")

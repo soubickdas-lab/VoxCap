@@ -571,8 +571,8 @@ async function poll(jobId) {
     else if (job.status === 'done') {
       setProgress(100, '✅ Done — SRT download ho gayi');
       data = job.result;
-      generatedAudioUrl = job.audio_url || null;
-      if (job.audio_url) { srcUrl = job.audio_url; srcIsVideo = false; }
+      generatedAudioUrl = job.audio_url ? '/api/audio/' + jobId : null;
+      if (generatedAudioUrl) { srcUrl = generatedAudioUrl; srcIsVideo = false; }
       showResult();
       return;
     }
@@ -587,8 +587,14 @@ function setProgress(pct, label) {
 /* ---------- result ---------- */
 function showResult() {
   const da = $('dl-audio');
-  if (generatedAudioUrl) { da.href = generatedAudioUrl; da.style.display = ''; }
-  else { da.style.display = 'none'; }
+  if (generatedAudioUrl) {
+    const q = '?dl=1&name=' + encodeURIComponent(srcName);
+    da.href = generatedAudioUrl + q;
+    da.download = srcName + '.mp3';
+    da.style.display = '';
+  } else {
+    da.style.display = 'none';
+  }
   gapsFilled = false;
   origTimes = null;
   const gb = $('gap-btn');
@@ -607,6 +613,7 @@ function showResult() {
   updateSrtPreview();
   $('result').style.display = 'block';
   downloadSrt();
+  if (generatedAudioUrl) downloadAudio();
   $('result').scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -742,6 +749,16 @@ function updateSrtPreview() {
     box.appendChild(div);
   });
 }
+function downloadAudio() {
+  if (!generatedAudioUrl) return;
+  const a = document.createElement('a');
+  a.href = generatedAudioUrl + '?dl=1&name=' + encodeURIComponent(srcName);
+  a.download = srcName + '.mp3';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 function copySrt(btn) {
   navigator.clipboard.writeText(buildSrt()).then(() => {
     btn.textContent = '✅ Copied';

@@ -49,7 +49,9 @@ v1.7 (18 Aug 2026)  - AI AUDIO
   Tags sirf audio par lagte hain - SRT me kabhi nahi aate
 - ai33 se connection toote to job fail nahi hoti - dobara connect karke
   polling chalti rehti hai (udhar audio ban hi raha hota hai)
-- Generated audio ka "Download Audio" button
+- Generated audio bhi APNE AAP download hota hai (SRT ke saath) - dono
+  files ek hi naam se: "meri script.mp3" + "meri script.srt".
+  Manual "Download Audio" button bhi hai
 - Live credits header me dikhte hain
 
   NOTE: ai33 API key aapki apni honi chahiye. VoxCap folder me
