@@ -157,30 +157,35 @@
     border-radius: 12px; padding: 18px; margin-bottom: 18px;
   }
   #ai-panel label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  #ai-editor {
+    position: relative; border: 1px solid var(--border); border-radius: 10px;
+    background: var(--bg); overflow: hidden;
+  }
+  #ai-editor:focus-within { border-color: var(--accent-2); }
+  #ai-hl, #ai-text {
+    margin: 0; padding: 12px 14px; border: 0; width: 100%;
+    min-height: 190px; max-height: 420px;
+    font: 400 14px/1.65 "Segoe UI", system-ui, sans-serif;
+    white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word;
+    letter-spacing: normal; tab-size: 4;
+  }
+  #ai-hl {
+    position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+    color: var(--text); background: transparent;
+  }
   #ai-text {
-    width: 100%; min-height: 130px; resize: vertical; background: var(--bg);
-    color: var(--text); border: 1px solid var(--border); border-radius: 10px;
-    padding: 12px 14px; font-size: 14px; line-height: 1.6; outline: none;
-    font-family: inherit;
+    position: relative; display: block; resize: vertical; overflow: auto;
+    background: transparent; color: transparent; caret-color: var(--accent);
+    outline: none;
   }
-  #ai-text:focus { border-color: var(--accent-2); }
-  .tag-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 16px; }
-  .tag-row > span { font-size: 12.5px; color: var(--muted); }
-  .tag-row select { padding: 6px 10px; font-size: 12.5px; border-radius: 8px; }
-  .tag-help { font-size: 12px; color: var(--muted); margin: 10px 0 8px; }
-  .tag-groups { display: flex; flex-direction: column; gap: 7px; margin-bottom: 16px; }
-  .tag-grp { display: flex; align-items: flex-start; gap: 10px; }
-  .tag-lbl {
-    font-size: 11px; color: var(--muted); text-transform: uppercase;
-    letter-spacing: .5px; min-width: 62px; padding-top: 5px; flex-shrink: 0;
-  }
-  .tag-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .tag-chip {
-    background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
-    border-radius: 999px; padding: 4px 11px; font-size: 12px; cursor: pointer;
-    font-family: Consolas, monospace; transition: all .12s;
-  }
-  .tag-chip:hover { border-color: var(--accent-2); background: #241f3d; }
+  #ai-text::placeholder { color: #5c5c6e; }
+  #ai-text::selection { background: rgba(124, 92, 255, .38); }
+  .tg { border-radius: 4px; padding: 0 2px; font-weight: 600; }
+  .tg-emo { color: #b79bff; background: rgba(124, 92, 255, .13); }
+  .tg-ctl { color: #ff9d4d; background: rgba(255, 157, 77, .13); }
+  .tg-ssml { color: #ffb454; background: rgba(255, 180, 84, .12); font-family: Consolas, monospace; font-size: 13px; }
+  .tag-help { font-size: 12px; color: var(--muted); margin: 9px 0 16px; line-height: 1.6; }
+  .tag-help code { background: var(--panel-2); padding: 1px 6px; border-radius: 4px; color: #b79bff; font-size: 11.5px; }
   .ai-fields { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; margin-bottom: 14px; }
   .ai-fields input[type=text] {
     background: var(--bg); color: var(--text); border: 1px solid var(--border);
@@ -324,14 +329,11 @@
 
   <div id="ai-panel" hidden>
     <label>Text - jo bulwana hai <span id="ai-from-script" style="color:var(--accent-2);cursor:pointer;display:none">&middot; script se bharo</span></label>
-    <textarea id="ai-text" spellcheck="false" placeholder="Yahan apna script likho..."></textarea>
-    <div class="tag-help">Tag par click karo — cursor jahan hai wahan lag jayega. (ElevenLabs v3 voices par best chalte hain)</div>
-    <div class="tag-groups">
-      <div class="tag-grp"><span class="tag-lbl">Emotion</span><div class="tag-chips" data-tags="[excited] [curious] [sarcastic] [angry] [sad] [happy] [nervous] [tired] [surprised]"></div></div>
-      <div class="tag-grp"><span class="tag-lbl">Delivery</span><div class="tag-chips" data-tags="[whispers] [shouting] [slow] [fast] [rushed] [drawn out] [mumbles]"></div></div>
-      <div class="tag-grp"><span class="tag-lbl">Pause</span><div class="tag-chips" data-tags="[pause] [short pause] [long pause]"></div></div>
-      <div class="tag-grp"><span class="tag-lbl">Sound</span><div class="tag-chips" data-tags="[laughs] [chuckles] [sighs] [gasps] [clears throat] [crying] [snorts]"></div></div>
+    <div id="ai-editor">
+      <pre id="ai-hl" aria-hidden="true"></pre>
+      <textarea id="ai-text" spellcheck="false" placeholder="Yahan apna script paste karo — [tags] apne aap rangeen ho jaayenge"></textarea>
     </div>
+    <div class="tag-help">Text me <code>[excited]</code>, <code>[pause]</code>, <code>[speed_slow]</code> ya <code>&lt;break time="3s"/&gt;</code> jaise tags paste karo — ye apne aap highlight ho jaate hain aur audio me apply hote hain (ElevenLabs v3 voices par best).</div>
 
     <div class="ai-fields">
       <div>
@@ -777,27 +779,33 @@ $('ai-from-script').addEventListener('click', () => {
     .map(l => l.replace(/^\d+\s*[.\)\-:\t]?\s+/, '').trim())
     .filter(Boolean);
   $('ai-text').value = lines.join('\n');
+  renderHighlight();
 });
 
 /* tag insert at cursor */
-document.querySelectorAll('.tag-chips').forEach(box => {
-  (box.dataset.tags.match(/\[[^\]]+\]/g) || []).forEach(tag => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'tag-chip';
-    b.textContent = tag;
-    b.addEventListener('click', () => insertTag(tag));
-    box.appendChild(b);
-  });
-});
+/* text box me tags ko rangeen dikhao (paste karte hi) */
+const TAG_CTL = /^\[(pause|short pause|long pause|break|speed[_ ]|slow|fast|rushed|drawn out|rate)/i;
 
-function insertTag(tag) {
-  const ta = $('ai-text');
-  const a = ta.selectionStart, b = ta.selectionEnd;
-  ta.value = ta.value.slice(0, a) + tag + ' ' + ta.value.slice(b);
-  ta.focus();
-  ta.selectionStart = ta.selectionEnd = a + tag.length + 1;
+function escHtml(t) {
+  return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
+
+function renderHighlight() {
+  const ta = $('ai-text'), hl = $('ai-hl');
+  let html = escHtml(ta.value);
+  // SSML jaise <break time="3s"/>
+  html = html.replace(/&lt;[^&]*?\/?&gt;/g, m => '<span class="tg tg-ssml">' + m + '</span>');
+  // [tag] — control wale orange, baaki purple
+  html = html.replace(/\[[^\[\]\n]{1,40}\]/g, m =>
+    '<span class="tg ' + (TAG_CTL.test(m) ? 'tg-ctl' : 'tg-emo') + '">' + m + '</span>');
+  hl.innerHTML = html + '\n';
+  hl.scrollTop = ta.scrollTop;
+}
+
+$('ai-text').addEventListener('input', renderHighlight);
+$('ai-text').addEventListener('scroll', () => { $('ai-hl').scrollTop = $('ai-text').scrollTop; });
+new ResizeObserver(() => renderHighlight()).observe($('ai-text'));
+renderHighlight();
 
 $('ai-speed').addEventListener('input', e =>
   $('ai-speed-val').textContent = Number(e.target.value).toFixed(2));

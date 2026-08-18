@@ -41,8 +41,10 @@ v1.7 (18 Aug 2026)  - AI AUDIO
 - Voice ID khud daal sakte ho, ya "Save voice" se apni pasand ki voices
   save karke rakho - agli baar ek click me use ho jaayengi
 - Speed control 0.5x - 1.5x
-- 26 supported tags directly UI me chips ki tarah dikhte hain (Emotion,
-  Delivery, Pause, Sound) - click karo, cursor par lag jaata hai
+- Text box me tags apne aap RANGEEN dikhte hain jaise hi paste karo:
+  [excited] jaise expression tags purple, [pause]/[speed_slow] jaise
+  control tags orange, aur <break time="3s"/> SSML orange monospace.
+  Tags sirf audio par lagte hain - SRT me kabhi nahi aate
 - ai33 se connection toote to job fail nahi hoti - dobara connect karke
   polling chalti rehti hai (udhar audio ban hi raha hota hai)
 - Generated audio ka "Download Audio" button
