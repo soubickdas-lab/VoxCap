@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 VoxCap-share.zip
 cloudflare-config.yml
+ai33-key.txt
+ai33-voices.json

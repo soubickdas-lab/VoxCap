@@ -1,5 +1,5 @@
 ==========================================
-  VoxCap — Version 1.6
+  VoxCap — Version 1.7
 ==========================================
 
 Ye file batati hai ki aapke paas kaunsa version hai.
@@ -13,6 +13,8 @@ FEATURES
 - Audio/Video → CapCut-style SRT captions (fully offline, Whisper large-v3)
 - Meaningful line breaks — har caption line ka apna matlab banta hai
   (comma, connector words, pause par break; kabhi mid-phrase cut nahi)
+- AI se audio banao (ai33.pro) - upload ki jagah text likho, audio ban jaati
+  hai aur usi se SRT bhi. Dono modes me chalta hai
 - SRT Matcher mode — apna script/beats do, har line audio se time-match hoti hai
 - Drop karte hi auto-transcribe, SRT auto-download + live preview
 - Coverage % — verify karo ki pura text captions me aaya (100% hona chahiye)
@@ -27,6 +29,28 @@ FEATURES
 ------------------------------------------
 CHANGELOG
 ------------------------------------------
+
+v1.7 (18 Aug 2026)  - AI AUDIO
+- Naya toggle: "Audio khud bana lo (ai33)" - audio upload/drag ka jhanjhat
+  khatam. Text likho -> ai33 audio banata hai -> VoxCap khud download karke
+  SRT banata hai. Dono modes (Audio->SRT aur SRT Matcher) me chalta hai
+- SRT hamesha LOCAL Whisper se banti hai - ai33 se transcript nahi lete,
+  taaki CapCut-style breaks aur timing apne control me rahe
+- Voice library: provider (ElevenLabs/Minimax/Edge/Kokoro/clones/FishAudio),
+  search, aur har voice ke aage sample sunne ka button
+- Voice ID khud daal sakte ho, ya "Save voice" se apni pasand ki voices
+  save karke rakho - agli baar ek click me use ho jaayengi
+- Speed control 0.5x - 1.5x
+- 26 supported tags directly UI me chips ki tarah dikhte hain (Emotion,
+  Delivery, Pause, Sound) - click karo, cursor par lag jaata hai
+- ai33 se connection toote to job fail nahi hoti - dobara connect karke
+  polling chalti rehti hai (udhar audio ban hi raha hota hai)
+- Generated audio ka "Download Audio" button
+- Live credits header me dikhte hain
+
+  NOTE: ai33 API key aapki apni honi chahiye. VoxCap folder me
+  ai33-key.txt banao aur usme key paste kar do (ya AI33_API_KEY env var).
+  Key kabhi GitHub par nahi jaati.
 
 v1.6 (12 Aug 2026)  — ACCURACY UPDATE
 - BUG FIX (bada): jin segments ke word-timestamps nahi bante the, unka

@@ -36,6 +36,7 @@ def _register_cuda_dlls() -> None:
 
 _register_cuda_dlls()
 
+import ai33
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -500,10 +501,15 @@ def _kill_worker() -> None:
         _worker = None
 
 
-def _start_job(path: str, language: str, max_chars: int, script: str = "") -> str:
-    job_id = uuid.uuid4().hex[:12]
-    with _jobs_lock:
-        _jobs[job_id] = {"status": "queued", "progress": 0.0, "path": path}
+def _start_job(path: str, language: str, max_chars: int, script: str = "",
+               job_id: str = "") -> str:
+    if job_id:
+        with _jobs_lock:
+            _jobs.setdefault(job_id, {}).update(status="queued", progress=0.0, path=path)
+    else:
+        job_id = uuid.uuid4().hex[:12]
+        with _jobs_lock:
+            _jobs[job_id] = {"status": "queued", "progress": 0.0, "path": path}
     _ensure_worker()
     lang = None if language == "auto" else language
     _task_q.put((job_id, path, lang, max(30, min(max_chars, 120)), script))
@@ -629,6 +635,116 @@ def index():
 
 
 app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
+
+
+# ---------------- ai33.pro — AI se audio generate karke SRT banao ----------------
+
+
+def _set(job_id: str, **fields) -> None:
+    with _jobs_lock:
+        if job_id in _jobs:
+            _jobs[job_id].update(fields)
+
+
+def _cancelled(job_id: str) -> bool:
+    with _jobs_lock:
+        return _jobs.get(job_id, {}).get("status") == "cancelled"
+
+
+def _generate_then_transcribe(job_id: str, text: str, voice_id: str, speed: float,
+                              language: str, max_chars: int, script: str) -> None:
+    """ai33 se audio banwao, download karo, phir wahi normal pipeline chalao."""
+    try:
+        _set(job_id, status="generating", progress=0.0, note="ai33 ko bhej rahe hain…")
+        task_id = ai33.submit_tts(text, voice_id, speed)
+        _set(job_id, ai33_task=task_id, note="ai33 audio bana raha hai…")
+
+        def on_progress(pct, note):
+            fields = {}
+            if pct is not None:
+                fields["progress"] = max(0.0, min(pct / 100.0, 1.0))
+            if note:
+                fields["note"] = note
+            elif pct is not None:
+                fields["note"] = f"ai33 audio bana raha hai… {int(pct)}%"
+            if fields:
+                _set(job_id, **fields)
+
+        if _cancelled(job_id):
+            return
+        task = ai33.wait_for_task(task_id, on_progress=on_progress)
+        if _cancelled(job_id):
+            return
+        audio_url = (task.get("metadata") or {}).get("audio_url")
+        if not audio_url:
+            raise ai33.Ai33Error("ai33 ne audio_url nahi diya")
+
+        _set(job_id, status="downloading", progress=1.0, note="audio download ho raha hai…")
+        suffix = ".mp3" if ".mp3" in audio_url.lower() else ".wav"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp_path = tmp.name
+        ai33.download(audio_url, tmp_path)
+
+        if _cancelled(job_id):
+            os.unlink(tmp_path)
+            return
+        _set(job_id, audio_url=audio_url, note="")
+        _start_job(tmp_path, language, max_chars, script, job_id=job_id)
+    except Exception as exc:
+        _set(job_id, status="error", error=str(exc))
+
+
+@app.get("/api/ai33/status")
+def ai33_status():
+    if not ai33.get_key():
+        return {"configured": False}
+    try:
+        return {"configured": True, "credits": ai33.credits(), "health": ai33.health()}
+    except Exception as exc:
+        return {"configured": True, "error": str(exc)}
+
+
+@app.get("/api/ai33/voices")
+def ai33_voices(provider: str = "elevenlabs", search: str = "", page: int = 1,
+                page_size: int = 30, language: str = "", gender: str = ""):
+    try:
+        return ai33.voices(provider, search, page, min(page_size, 100), language, gender)
+    except Exception as exc:
+        raise HTTPException(502, str(exc))
+
+
+@app.get("/api/ai33/saved")
+def ai33_saved():
+    return {"voices": ai33.load_saved()}
+
+
+@app.post("/api/ai33/saved")
+def ai33_save(voice_id: str = Form(...), name: str = Form(""),
+              speed: float = Form(1.0), preview_url: str = Form("")):
+    return {"voices": ai33.save_voice(voice_id, name, speed, preview_url)}
+
+
+@app.delete("/api/ai33/saved/{voice_id}")
+def ai33_unsave(voice_id: str):
+    return {"voices": ai33.delete_saved(voice_id)}
+
+
+@app.post("/api/ai33/generate")
+def ai33_generate(text: str = Form(...), voice_id: str = Form(...),
+                  speed: float = Form(1.0), language: str = Form("auto"),
+                  max_chars: int = Form(70), script: str = Form("")):
+    if not ai33.get_key():
+        raise HTTPException(400, "ai33 API key set nahi hai")
+    if not text.strip():
+        raise HTTPException(400, "text khaali hai")
+    job_id = uuid.uuid4().hex[:12]
+    with _jobs_lock:
+        _jobs[job_id] = {"status": "generating", "progress": 0.0, "source": "ai33"}
+    threading.Thread(target=_generate_then_transcribe,
+                     args=(job_id, text, voice_id, float(speed), language,
+                           max(30, min(max_chars, 120)), script),
+                     daemon=True).start()
+    return {"job_id": job_id}
 
 
 if __name__ == "__main__":

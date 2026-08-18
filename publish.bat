@@ -34,6 +34,7 @@ set "STAGE=%TEMP%\voxcap-share\VoxCap"
 if exist "%TEMP%\voxcap-share" rmdir /s /q "%TEMP%\voxcap-share"
 mkdir "%STAGE%\static"
 copy /y server.py "%STAGE%" >nul
+copy /y ai33.py "%STAGE%" >nul
 copy /y requirements.txt "%STAGE%" >nul
 copy /y setup.bat "%STAGE%" >nul
 copy /y start-local.bat "%STAGE%" >nul

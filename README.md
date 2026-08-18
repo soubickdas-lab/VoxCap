@@ -11,6 +11,7 @@
 
 | Feature | Detail |
 |---|---|
+| 🤖 AI audio (ai33) | Upload ki jagah text likho — audio ban jaati hai, SRT bhi (SRT hamesha local Whisper se) |
 | 🎯 CapCut-style captions | 3–4 word ke chhote chunks, pause aur sentence ke hisaab se break |
 | 🧩 SRT Matcher mode | Apna script/beats do — har line ek caption banti hai, audio se time-match hoke |
 | 🗣 99+ languages | Hindi, English, Urdu, Punjabi, Bengali, Tamil, Telugu + auto-detect |
@@ -54,6 +55,18 @@ Phir audio drop karo. Timing do tarike se milti hai (apne aap decide hota hai):
 > 💡 Tip: beats ke saath actual script bhi likho (`1  Hook - Kya aapne kabhi socha hai...`) to exact timing milegi.
 
 ---
+
+## AI audio (ai33.pro) — optional
+
+Audio upload karne ke bajaye text se audio bana sakte ho:
+
+1. https://ai33.pro se apni API key lo
+2. VoxCap folder me `ai33-key.txt` file banao, usme key paste karo
+   (ya `AI33_API_KEY` environment variable set karo)
+3. App me "Audio khud bana lo" toggle on karo — text likho, voice chuno, Generate
+
+Key local hi rehti hai — repo/zip me kabhi nahi jaati (gitignored).
+**SRT hamesha aapke apne Whisper se banti hai**, ai33 ka transcript use nahi hota.
 
 ## Setup (naye PC par)
 

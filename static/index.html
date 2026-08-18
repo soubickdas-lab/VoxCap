@@ -127,6 +127,90 @@
   .pill.mid b { color: #ffc14d; }
   .pill.bad b { color: var(--danger); }
   .exports { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+  /* ---- ai33 audio generator ---- */
+  .ai-row {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 18px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 18px;
+  }
+  .ai-row.on { border-color: var(--accent-2); }
+  .switch { position: relative; width: 46px; height: 26px; flex-shrink: 0; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch .sl {
+    position: absolute; inset: 0; background: var(--panel-2); border-radius: 999px;
+    cursor: pointer; transition: background .2s; border: 1px solid var(--border);
+  }
+  .switch .sl::before {
+    content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px;
+    background: var(--muted); border-radius: 50%; transition: transform .2s, background .2s;
+  }
+  .switch input:checked + .sl { background: var(--accent-2); border-color: var(--accent-2); }
+  .switch input:checked + .sl::before { transform: translateX(20px); background: #fff; }
+  .ai-t { font-size: 15px; font-weight: 700; }
+  .ai-s { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .badge {
+    background: var(--accent-2); color: #fff; font-size: 10px; font-weight: 700;
+    padding: 2px 7px; border-radius: 999px; vertical-align: middle; margin-left: 6px;
+  }
+  #ai-panel {
+    background: var(--panel); border: 1px solid var(--accent-2);
+    border-radius: 12px; padding: 18px; margin-bottom: 18px;
+  }
+  #ai-panel label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  #ai-text {
+    width: 100%; min-height: 130px; resize: vertical; background: var(--bg);
+    color: var(--text); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; font-size: 14px; line-height: 1.6; outline: none;
+    font-family: inherit;
+  }
+  #ai-text:focus { border-color: var(--accent-2); }
+  .tag-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 16px; }
+  .tag-row > span { font-size: 12.5px; color: var(--muted); }
+  .tag-row select { padding: 6px 10px; font-size: 12.5px; border-radius: 8px; }
+  .tag-help { font-size: 12px; color: var(--muted); margin: 10px 0 8px; }
+  .tag-groups { display: flex; flex-direction: column; gap: 7px; margin-bottom: 16px; }
+  .tag-grp { display: flex; align-items: flex-start; gap: 10px; }
+  .tag-lbl {
+    font-size: 11px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .5px; min-width: 62px; padding-top: 5px; flex-shrink: 0;
+  }
+  .tag-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag-chip {
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 999px; padding: 4px 11px; font-size: 12px; cursor: pointer;
+    font-family: Consolas, monospace; transition: all .12s;
+  }
+  .tag-chip:hover { border-color: var(--accent-2); background: #241f3d; }
+  .ai-fields { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; margin-bottom: 14px; }
+  .ai-fields input[type=text] {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 9px 12px; font-size: 13px; outline: none;
+    font-family: Consolas, monospace;
+  }
+  .ai-fields input[type=text]:focus { border-color: var(--accent-2); }
+  #ai-voice-list {
+    max-height: 230px; overflow: auto; border: 1px solid var(--border);
+    border-radius: 10px; margin-bottom: 14px; display: none;
+  }
+  .voice {
+    display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .voice:last-child { border-bottom: none; }
+  .voice:hover { background: var(--panel-2); }
+  .voice .vn { flex: 1; font-size: 13px; }
+  .voice .vm { font-size: 11.5px; color: var(--muted); }
+  .voice button { padding: 5px 10px; font-size: 12px; }
+  .mini { padding: 6px 12px !important; font-size: 12.5px !important; }
+  #ai-saved { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .saved-chip {
+    display: flex; align-items: center; gap: 6px; background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 999px; padding: 6px 8px 6px 12px;
+    font-size: 12.5px; cursor: pointer;
+  }
+  .saved-chip:hover { border-color: var(--accent); }
+  .saved-chip .x { color: var(--muted); padding: 0 4px; }
+  .saved-chip .x:hover { color: var(--danger); }
   /* ---- modern player ---- */
   #player-box { margin-bottom: 16px; }
   #player-box video {
@@ -228,6 +312,60 @@
     <input type="file" id="file-input" accept="audio/*,video/*" hidden>
   </div>
 
+
+  <div class="ai-row" id="ai-row">
+    <label class="switch"><input type="checkbox" id="ai-toggle"><span class="sl"></span></label>
+    <div style="flex:1">
+      <div class="ai-t">Audio khud bana lo<span class="badge">ai33</span></div>
+      <div class="ai-s">Upload ka jhanjhat nahi - text likho, audio ban ke SRT bhi ban jayegi</div>
+    </div>
+    <span class="pill" id="ai-status">checking...</span>
+  </div>
+
+  <div id="ai-panel" hidden>
+    <label>Text - jo bulwana hai <span id="ai-from-script" style="color:var(--accent-2);cursor:pointer;display:none">&middot; script se bharo</span></label>
+    <textarea id="ai-text" spellcheck="false" placeholder="Yahan apna script likho..."></textarea>
+    <div class="tag-help">Tag par click karo — cursor jahan hai wahan lag jayega. (ElevenLabs v3 voices par best chalte hain)</div>
+    <div class="tag-groups">
+      <div class="tag-grp"><span class="tag-lbl">Emotion</span><div class="tag-chips" data-tags="[excited] [curious] [sarcastic] [angry] [sad] [happy] [nervous] [tired] [surprised]"></div></div>
+      <div class="tag-grp"><span class="tag-lbl">Delivery</span><div class="tag-chips" data-tags="[whispers] [shouting] [slow] [fast] [rushed] [drawn out] [mumbles]"></div></div>
+      <div class="tag-grp"><span class="tag-lbl">Pause</span><div class="tag-chips" data-tags="[pause] [short pause] [long pause]"></div></div>
+      <div class="tag-grp"><span class="tag-lbl">Sound</span><div class="tag-chips" data-tags="[laughs] [chuckles] [sighs] [gasps] [clears throat] [crying] [snorts]"></div></div>
+    </div>
+
+    <div class="ai-fields">
+      <div>
+        <label>Voice ID</label>
+        <input type="text" id="ai-voice-id" size="34" placeholder="elevenlabs_... / minimax_... / edge_...">
+      </div>
+      <div>
+        <label>Voice dhundo</label>
+        <select id="ai-provider">
+          <option value="elevenlabs">ElevenLabs</option>
+          <option value="minimax">Minimax</option>
+          <option value="edge">Edge (fast)</option>
+          <option value="kokoro">Kokoro</option>
+          <option value="clone">My clones</option>
+          <option value="fishaudio">FishAudio</option>
+        </select>
+      </div>
+      <input type="text" id="ai-search" size="20" placeholder="storyteller, hindi...">
+      <button class="btn mini" id="ai-search-btn">Search</button>
+      <button class="btn mini" id="ai-save-voice">Save voice</button>
+    </div>
+
+    <div id="ai-voice-list"></div>
+    <div id="ai-saved"></div>
+
+    <div class="ai-fields">
+      <div>
+        <label>Speed: <b id="ai-speed-val">1.00</b>x</label>
+        <input type="range" id="ai-speed" min="0.5" max="1.5" step="0.05" value="1">
+      </div>
+      <button class="btn-primary" id="ai-generate" style="margin-left:auto">Audio banao + SRT</button>
+    </div>
+  </div>
+
   <div class="controls">
     <div>
       <label>Language</label>
@@ -264,6 +402,7 @@
       <button class="btn-primary" onclick="downloadSrt()">⬇ Download SRT</button>
       <button class="btn" id="gap-btn" onclick="fillGaps(this)">🧲 Fill Gaps</button>
       <button class="btn" onclick="copySrt(this)">📋 Copy</button>
+      <a class="btn" id="dl-audio" style="display:none;text-decoration:none" download>⬇ Audio</a>
     </div>
     <div id="srt-preview"></div>
   </div>
@@ -277,6 +416,8 @@ let busy = false;
 let mode = 'auto';
 let currentJobId = null;
 let stopRequested = false;
+let srcUrl = null, srcName = 'voxcap', srcIsVideo = false;
+let generatedAudioUrl = null;
 
 /* ---------- system stats (top right) ---------- */
 function setStat(id, val) {
@@ -304,6 +445,8 @@ function setMode(m) {
   $('mode-auto').classList.toggle('active', m === 'auto');
   $('mode-matcher').classList.toggle('active', m === 'matcher');
   $('script-wrap').classList.toggle('disabled', m === 'auto');
+  const fs = document.getElementById('ai-from-script');
+  if (fs) fs.style.display = (aiMode && m === 'matcher') ? '' : 'none';
 }
 
 /* ---------- file selection → auto transcribe ---------- */
@@ -325,6 +468,10 @@ function setFile(f) {
     return;
   }
   selectedFile = f;
+  generatedAudioUrl = null;
+  srcUrl = URL.createObjectURL(f);
+  srcName = f.name;
+  srcIsVideo = f.type.startsWith('video');
   dz.querySelector('.big').textContent = '🎧 ' + f.name;
   dz.querySelector('.sub').textContent = (f.size / 1048576).toFixed(1) + ' MB — processing…';
   $('start-btn').disabled = false;
@@ -332,7 +479,7 @@ function setFile(f) {
 }
 
 /* ---------- start / stop ---------- */
-$('start-btn').addEventListener('click', () => transcribe());
+$('start-btn').addEventListener('click', () => aiMode ? generateAudio() : transcribe());
 $('stop-btn').addEventListener('click', async () => {
   stopRequested = true;
   if (currentJobId) {
@@ -403,7 +550,9 @@ async function poll(jobId) {
     await new Promise(r => setTimeout(r, 800));
     if (stopRequested) { setProgress(0, '⏹ Stopped'); return; }
     const job = await (await fetch('/api/jobs/' + jobId)).json();
-    if (job.status === 'queued') setProgress(26, 'Queued…');
+    if (job.status === 'generating') setProgress(2 + (job.progress || 0) * 20, job.note || 'ai33 audio bana raha hai…');
+    else if (job.status === 'downloading') setProgress(24, job.note || 'Audio download ho raha hai…');
+    else if (job.status === 'queued') setProgress(26, 'Queued…');
     else if (job.status === 'loading_model') setProgress(28, 'Model load ho raha hai…');
     else if (job.status === 'transcribing') setProgress(30 + job.progress * 68, 'Transcribing… ' + Math.round(job.progress * 100) + '%');
     else if (job.status === 'error') { setProgress(0, '❌ ' + job.error); return; }
@@ -411,6 +560,8 @@ async function poll(jobId) {
     else if (job.status === 'done') {
       setProgress(100, '✅ Done — SRT download ho gayi');
       data = job.result;
+      generatedAudioUrl = job.audio_url || null;
+      if (job.audio_url) { srcUrl = job.audio_url; srcIsVideo = false; }
       showResult();
       return;
     }
@@ -424,6 +575,9 @@ function setProgress(pct, label) {
 
 /* ---------- result ---------- */
 function showResult() {
+  const da = $('dl-audio');
+  if (generatedAudioUrl) { da.href = generatedAudioUrl; da.style.display = ''; }
+  else { da.style.display = 'none'; }
   gapsFilled = false;
   origTimes = null;
   const gb = $('gap-btn');
@@ -466,7 +620,7 @@ function downloadSrt() {
   if (!data) return;
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([buildSrt()], { type: 'text/plain' }));
-  const base = (selectedFile?.name || 'voxcap').replace(/\.[^.]+$/, '');
+  const base = (srcName || 'voxcap').replace(/\.[^.]+$/, '');
   a.download = base + (gapsFilled ? ' gap-filled' : '') + '.srt';
   a.click();
 }
@@ -510,11 +664,11 @@ function clock(s) {
 
 function buildPlayer() {
   const box = $('player-box');
-  if (media) URL.revokeObjectURL(media.src);
+  if (media && media.src.startsWith('blob:')) URL.revokeObjectURL(media.src);
   box.innerHTML = '';
-  const isVideo = selectedFile.type.startsWith('video');
+  const isVideo = srcIsVideo;
   media = document.createElement(isVideo ? 'video' : 'audio');
-  media.src = URL.createObjectURL(selectedFile);
+  media.src = srcUrl;
   media.preload = 'metadata';
   if (isVideo) {
     box.appendChild(media);
@@ -583,6 +737,244 @@ function copySrt(btn) {
     setTimeout(() => btn.textContent = '📋 Copy', 1500);
   });
 }
+
+/* ---------- ai33: AI se audio banao ---------- */
+let aiMode = false;
+let previewAudio = null;
+
+async function loadAi33Status() {
+  const el = $('ai-status');
+  try {
+    const st = await (await fetch('/api/ai33/status')).json();
+    if (!st.configured) {
+      el.textContent = 'API key set nahi';
+      el.title = 'ai33-key.txt banao ya AI33_API_KEY env var set karo';
+    } else if (st.error) {
+      el.textContent = 'connect nahi hua';
+      el.title = st.error;
+    } else {
+      el.innerHTML = '<b>' + Number(st.credits).toLocaleString() + '</b> credits';
+      el.classList.add('good');
+    }
+  } catch { el.textContent = 'offline'; }
+}
+loadAi33Status();
+
+$('ai-toggle').addEventListener('change', e => {
+  aiMode = e.target.checked;
+  $('ai-panel').hidden = !aiMode;
+  $('ai-row').classList.toggle('on', aiMode);
+  dz.style.display = aiMode ? 'none' : '';
+  $('start-btn').disabled = aiMode ? false : !selectedFile;
+  $('ai-from-script').style.display = (aiMode && mode === 'matcher') ? '' : 'none';
+  if (aiMode) { loadSavedVoices(); loadAi33Status(); }
+});
+
+$('ai-from-script').addEventListener('click', () => {
+  const lines = $('script-box').value.split('\n')
+    .map(l => l.trim())
+    .filter(l => l && !/^(sn|s\.?\s*no\.?|serial|#)\s*\t?\s*beats?$/i.test(l))
+    .map(l => l.replace(/^\d+\s*[.\)\-:\t]?\s+/, '').trim())
+    .filter(Boolean);
+  $('ai-text').value = lines.join('\n');
+});
+
+/* tag insert at cursor */
+document.querySelectorAll('.tag-chips').forEach(box => {
+  (box.dataset.tags.match(/\[[^\]]+\]/g) || []).forEach(tag => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'tag-chip';
+    b.textContent = tag;
+    b.addEventListener('click', () => insertTag(tag));
+    box.appendChild(b);
+  });
+});
+
+function insertTag(tag) {
+  const ta = $('ai-text');
+  const a = ta.selectionStart, b = ta.selectionEnd;
+  ta.value = ta.value.slice(0, a) + tag + ' ' + ta.value.slice(b);
+  ta.focus();
+  ta.selectionStart = ta.selectionEnd = a + tag.length + 1;
+}
+
+$('ai-speed').addEventListener('input', e =>
+  $('ai-speed-val').textContent = Number(e.target.value).toFixed(2));
+
+/* voice search */
+$('ai-search-btn').addEventListener('click', searchVoices);
+$('ai-search').addEventListener('keydown', e => { if (e.key === 'Enter') searchVoices(); });
+
+async function searchVoices() {
+  const box = $('ai-voice-list');
+  box.style.display = 'block';
+  box.innerHTML = '<div class="voice"><span class="vn">Dhundh rahe hain…</span></div>';
+  try {
+    const q = new URLSearchParams({
+      provider: $('ai-provider').value,
+      search: $('ai-search').value.trim(),
+      page_size: 40,
+    });
+    const r = await (await fetch('/api/ai33/voices?' + q)).json();
+    if (!r.voices || !r.voices.length) {
+      box.innerHTML = '<div class="voice"><span class="vn">Koi voice nahi mili</span></div>';
+      return;
+    }
+    box.innerHTML = '';
+    r.voices.forEach(v => box.appendChild(voiceRow(v)));
+  } catch (err) {
+    box.innerHTML = '<div class="voice"><span class="vn">Error: ' + err.message + '</span></div>';
+  }
+}
+
+function voiceRow(v) {
+  const row = document.createElement('div');
+  row.className = 'voice';
+  const info = document.createElement('div');
+  info.className = 'vn';
+  info.innerHTML = '<div>' + (v.name || v.voice_id) + '</div><div class="vm">' +
+    [v.language, v.gender, v.voice_id].filter(Boolean).join(' · ') + '</div>';
+  row.appendChild(info);
+  if (v.preview_url) {
+    const pv = document.createElement('button');
+    pv.className = 'btn';
+    pv.textContent = '▶ Sample';
+    pv.addEventListener('click', () => playPreview(v.preview_url, pv));
+    row.appendChild(pv);
+  }
+  const use = document.createElement('button');
+  use.className = 'btn';
+  use.textContent = 'Use';
+  use.addEventListener('click', () => {
+    $('ai-voice-id').value = v.voice_id;
+    $('ai-voice-id').dataset.name = v.name || '';
+    $('ai-voice-id').dataset.preview = v.preview_url || '';
+    document.querySelectorAll('.voice').forEach(x => x.style.background = '');
+    row.style.background = '#12241d';
+  });
+  row.appendChild(use);
+  return row;
+}
+
+function playPreview(url, btn) {
+  if (previewAudio) { previewAudio.pause(); }
+  document.querySelectorAll('.voice button').forEach(b => {
+    if (b.textContent === '⏸ Sample') b.textContent = '▶ Sample';
+  });
+  previewAudio = new Audio(url);
+  previewAudio.play().then(() => { btn.textContent = '⏸ Sample'; }).catch(() => {});
+  previewAudio.addEventListener('ended', () => btn.textContent = '▶ Sample');
+}
+
+/* saved voices */
+async function loadSavedVoices() {
+  try {
+    const r = await (await fetch('/api/ai33/saved')).json();
+    renderSaved(r.voices || []);
+  } catch {}
+}
+
+function renderSaved(list) {
+  const box = $('ai-saved');
+  box.innerHTML = '';
+  if (!list.length) return;
+  const lbl = document.createElement('span');
+  lbl.style.cssText = 'font-size:12.5px;color:var(--muted);align-self:center';
+  lbl.textContent = 'Saved:';
+  box.appendChild(lbl);
+  list.forEach(v => {
+    const chip = document.createElement('div');
+    chip.className = 'saved-chip';
+    const name = document.createElement('span');
+    name.textContent = v.name || v.voice_id;
+    name.title = v.voice_id;
+    name.addEventListener('click', () => {
+      $('ai-voice-id').value = v.voice_id;
+      $('ai-voice-id').dataset.name = v.name || '';
+      if (v.speed) { $('ai-speed').value = v.speed; $('ai-speed-val').textContent = Number(v.speed).toFixed(2); }
+    });
+    chip.appendChild(name);
+    if (v.preview_url) {
+      const pv = document.createElement('span');
+      pv.className = 'x';
+      pv.textContent = '▶';
+      pv.title = 'sample suno';
+      pv.addEventListener('click', ev => { ev.stopPropagation(); playPreview(v.preview_url, pv); });
+      chip.appendChild(pv);
+    }
+    const del = document.createElement('span');
+    del.className = 'x';
+    del.textContent = '×';
+    del.title = 'hatao';
+    del.addEventListener('click', async ev => {
+      ev.stopPropagation();
+      const r = await (await fetch('/api/ai33/saved/' + encodeURIComponent(v.voice_id),
+        { method: 'DELETE' })).json();
+      renderSaved(r.voices || []);
+    });
+    chip.appendChild(del);
+    box.appendChild(chip);
+  });
+}
+
+$('ai-save-voice').addEventListener('click', async () => {
+  const id = $('ai-voice-id').value.trim();
+  if (!id) return alert('Pehle voice ID daalo ya list se chuno.');
+  const fd = new FormData();
+  fd.append('voice_id', id);
+  fd.append('name', $('ai-voice-id').dataset.name || id);
+  fd.append('speed', $('ai-speed').value);
+  fd.append('preview_url', $('ai-voice-id').dataset.preview || '');
+  const r = await (await fetch('/api/ai33/saved', { method: 'POST', body: fd })).json();
+  renderSaved(r.voices || []);
+});
+
+/* generate + transcribe */
+$('ai-generate').addEventListener('click', generateAudio);
+
+async function generateAudio() {
+  const text = $('ai-text').value.trim();
+  const voice = $('ai-voice-id').value.trim();
+  if (!text) return alert('Pehle text likho.');
+  if (!voice) return alert('Voice ID chuno ya likho (search se "Use" dabao).');
+  if (busy) return;
+
+  busy = true;
+  stopRequested = false;
+  currentJobId = null;
+  $('start-btn').disabled = true;
+  $('stop-btn').disabled = false;
+  $('result').style.display = 'none';
+  $('progress-wrap').style.display = 'block';
+  setProgress(1, 'ai33 ko bhej rahe hain…');
+
+  const fd = new FormData();
+  fd.append('text', text);
+  fd.append('voice_id', voice);
+  fd.append('speed', $('ai-speed').value);
+  fd.append('language', $('language').value);
+  fd.append('max_chars', $('max-words').value);
+  if (mode === 'matcher') fd.append('script', $('script-box').value);
+
+  try {
+    const res = await fetch('/api/ai33/generate', { method: 'POST', body: fd });
+    if (!res.ok) throw new Error(await res.text());
+    const { job_id } = await res.json();
+    currentJobId = job_id;
+    selectedFile = null;
+    srcName = (text.slice(0, 40).replace(/[^\w\s-]/g, '').trim() || 'ai33-audio');
+    await poll(job_id);
+  } catch (err) {
+    setProgress(0, '❌ ' + err.message);
+  }
+  busy = false;
+  currentJobId = null;
+  $('start-btn').disabled = !aiMode && !selectedFile;
+  $('stop-btn').disabled = true;
+  loadAi33Status();
+}
+
 </script>
 </body>
 </html>
