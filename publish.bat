@@ -42,6 +42,7 @@ copy /y update.bat "%STAGE%" >nul
 copy /y README.md "%STAGE%" >nul
 copy /y "version %NEWVER%.txt" "%STAGE%" >nul
 copy /y static\index.html "%STAGE%\static" >nul
+copy /y "static\Ai33_TTS_Tags_Cheat_Sheet.txt" "%STAGE%\static" >nul
 powershell -NoProfile -Command "Compress-Archive -Path '%TEMP%\voxcap-share\VoxCap' -DestinationPath 'VoxCap-share.zip' -Force"
 echo  VoxCap-share.zip fresh ban gayi (version %NEWVER%).
 

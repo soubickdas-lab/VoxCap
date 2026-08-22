@@ -1,0 +1,93 @@
+====================================================================
+Ai33.Pro / OpenSpeaker  —  TTS TAG CHEAT SHEET
+Engine: ElevenLabs v3   |   Tags = app ke apne Tags menu se
+====================================================================
+
+--------------------------------------------------------------------
+1. PAUSE
+--------------------------------------------------------------------
+[pause]                 short natural pause
+                        She stopped. [pause] Then she ran.
+
+[long_pause]            longer dramatic pause
+                        And the killer is [long_pause] her brother.
+
+<break time="1.5s"/>    force pause, exact length
+                        Think about it. <break time="3s"/> Time is up.
+
+NOTE: <break> hi ek SSML tag hai jo yahan chalta hai.
+      Max 3 seconds per tag. 15-sec timer = <break time="3s"/> x 5.
+
+--------------------------------------------------------------------
+2. SPEED
+--------------------------------------------------------------------
+[speed_very_slow]       slowest      -> big reveal, final warning
+[speed_slow]            slower       -> question line, clue explanation
+[speed_fast]            faster       -> setup, list of differences
+[speed_very_fast]       fastest      -> rapid-fire intro, hype
+
+NOTE: right panel ka Speed slider (1.00 = normal) poori clip pe lagta hai;
+      tags sirf us hisse pe.
+
+--------------------------------------------------------------------
+3. SOUND EFFECTS
+--------------------------------------------------------------------
+[cough]                 [cough]ahem, text...
+[laughter]              [laughter]haha, text...
+[crying]                [crying]boohoo, text...
+[screaming]             [screaming]ahh, text...
+[burping]               [burping]burp, text...
+[humming]               [humming]hmm, text...
+[sigh]                  [sigh]uh, text...
+[sniff]                 [sniff]sniff, text...
+[sneeze]                [sneeze]achoo, text...
+
+PATTERN: tag -> matching sound word -> comma -> aapki line.
+         Woh word na ho to effect aksar skip ho jaata hai.
+
+--------------------------------------------------------------------
+4. EMOTION  (Experimental menu)
+--------------------------------------------------------------------
+[affection]     [amusement]     [anger]         [awe]
+[confusion]     [contentment]   [determination] [disgust]
+[elation]       [enthusiasm]    [fear]          [longing]
+[pride]         [relief]        [sadness]       [surprise]
+
+Tag ko us sentence ke thik pehle rakho. Ek-do sentence baad effect
+fade ho jaata hai -> lambe passage me dobara tag karo.
+
+--------------------------------------------------------------------
+5. DELIVERY STYLE  (Experimental menu)
+--------------------------------------------------------------------
+[whispering]            whispered delivery
+[shouting]              shouted delivery
+[singing]               sung delivery
+[pitch_low]             lower voice pitch
+[pitch_high]            higher voice pitch
+[expressive_high]       more expressive / more emotion
+[expressive_low]        less expressive / flat, neutral
+
+--------------------------------------------------------------------
+6. YE YAHAN NAHI CHALTE  (bol ke sunaa dega)
+--------------------------------------------------------------------
+<speak>   <p>   <s>   <prosody>   <emphasis>
+<say-as>  <sub> <phoneme>  <audio>  <voice>  <lang>  <mark>
+
+Sirf <break time="..."/> bachta hai. Baaki sab [square bracket] tag ho.
+
+--------------------------------------------------------------------
+7. PRACTICAL TIPS
+--------------------------------------------------------------------
+- Ek time pe ek tag sabse reliable. 2-3 stack karoge to delivery random.
+- Tag text ke bilkul pehle — beech me space ya line break nahi.
+- Emotion tags "Experimental" hain. Take kharab lage to pehle regenerate
+  karo, script badalne se pehle.
+- Har jagah chhote break mat daalo — zyada breaks se performance flat.
+- Numbers words me likho (zero four, na ki 04).
+- Lamba script chunks me render karo — tone consistent, credits control me.
+- Subtitle chahiye to "Export transcript" on kar do.
+
+====================================================================
+Sections 1-6 = app ke apne tags (Tags > Speed / Pause / Sound effect /
+Experimental).  Section 7 = usage guidance.
+====================================================================
