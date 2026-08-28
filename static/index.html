@@ -152,6 +152,25 @@
     background: var(--accent-2); color: #fff; font-size: 10px; font-weight: 700;
     padding: 2px 7px; border-radius: 999px; vertical-align: middle; margin-left: 6px;
   }
+  #ai-key-box {
+    background: var(--panel); border: 1px solid var(--accent-2);
+    border-radius: 12px; padding: 16px 18px; margin-bottom: 18px;
+  }
+  #ai-key-box label { display: block; font-size: 13px; color: var(--text); margin-bottom: 8px; }
+  .key-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  #ai-key-input {
+    flex: 1; min-width: 260px; background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px;
+    font-size: 13px; font-family: Consolas, monospace; outline: none;
+  }
+  #ai-key-input:focus { border-color: var(--accent-2); }
+  #ai-key-msg { font-size: 12.5px; }
+  #ai-key-msg.ok { color: var(--accent); }
+  #ai-key-msg.bad { color: var(--danger); }
+  .key-note { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.6; }
+  .key-note code { background: var(--panel-2); padding: 1px 6px; border-radius: 4px; }
+  .key-note a { color: var(--accent); }
+  .dim { color: var(--muted); }
   #ai-panel {
     background: var(--panel); border: 1px solid var(--accent-2);
     border-radius: 12px; padding: 18px; margin-bottom: 18px;
@@ -341,6 +360,22 @@
       <div class="ai-s">Upload ka jhanjhat nahi - text likho, audio ban ke SRT bhi ban jayegi</div>
     </div>
     <span class="pill" id="ai-status">checking...</span>
+    <button class="btn mini" id="ai-key-btn" title="ai33 API key set karo">🔑 Key</button>
+  </div>
+
+  <div id="ai-key-box" hidden>
+    <label>ai33 API key <span class="dim">— ek baar daalo, hamesha save rahegi (badalne tak)</span></label>
+    <div class="key-row">
+      <input type="password" id="ai-key-input" placeholder="sk_..." autocomplete="off" spellcheck="false">
+      <button class="btn-primary mini" id="ai-key-save">Save</button>
+      <button class="btn mini" id="ai-key-clear">Hatao</button>
+      <span id="ai-key-msg"></span>
+    </div>
+    <div class="dim key-note">
+      Key <a href="https://ai33.pro" target="_blank" rel="noopener">ai33.pro</a> se milti hai.
+      Sirf isi PC par <code>ai33-key.txt</code> me save hoti hai — GitHub/zip me kabhi nahi jaati,
+      aur website par aane walon ko na dikhti hai na wo badal sakte hain.
+    </div>
   </div>
 
   <div id="ai-panel" hidden>
@@ -785,22 +820,70 @@ function copySrt(btn) {
 let aiMode = false;
 let previewAudio = null;
 
+let keyEditable = true;
+
 async function loadAi33Status() {
   const el = $('ai-status');
   try {
     const st = await (await fetch('/api/ai33/status')).json();
+    keyEditable = st.can_edit !== false;
+    $('ai-key-btn').style.display = keyEditable ? '' : 'none';
+    el.classList.remove('good');
     if (!st.configured) {
       el.textContent = 'API key set nahi';
-      el.title = 'ai33-key.txt banao ya AI33_API_KEY env var set karo';
+      el.title = keyEditable ? 'Key button dabao' : 'server wale PC par set hoti hai';
+      if (keyEditable) $('ai-key-box').hidden = false;   // pehli baar khud khul jaye
     } else if (st.error) {
       el.textContent = 'connect nahi hua';
       el.title = st.error;
     } else {
       el.innerHTML = '<b>' + Number(st.credits).toLocaleString() + '</b> credits';
+      el.title = st.key ? 'key: ' + st.key : '';
       el.classList.add('good');
     }
   } catch { el.textContent = 'offline'; }
 }
+
+$('ai-key-btn').addEventListener('click', () => {
+  const box = $('ai-key-box');
+  box.hidden = !box.hidden;
+  if (!box.hidden) $('ai-key-input').focus();
+});
+
+function keyMsg(text, cls) {
+  const m = $('ai-key-msg');
+  m.textContent = text;
+  m.className = cls || '';
+}
+
+$('ai-key-save').addEventListener('click', saveKey);
+$('ai-key-input').addEventListener('keydown', e => { if (e.key === 'Enter') saveKey(); });
+
+async function saveKey() {
+  const key = $('ai-key-input').value.trim();
+  if (!key) return keyMsg('Key paste karo', 'bad');
+  keyMsg('check kar rahe hain...', '');
+  const fd = new FormData();
+  fd.append('key', key);
+  try {
+    const r = await fetch('/api/ai33/key', { method: 'POST', body: fd });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || 'key galat hai');
+    keyMsg('\u2713 save ho gayi \u2014 ' + Number(j.credits).toLocaleString() + ' credits', 'ok');
+    $('ai-key-input').value = '';
+    loadAi33Status();
+    setTimeout(() => { $('ai-key-box').hidden = true; keyMsg(''); }, 2500);
+  } catch (err) {
+    keyMsg('\u2717 ' + err.message, 'bad');
+  }
+}
+
+$('ai-key-clear').addEventListener('click', async () => {
+  if (!confirm('Saved API key hata dein?')) return;
+  await fetch('/api/ai33/key', { method: 'DELETE' });
+  keyMsg('key hata di', 'ok');
+  loadAi33Status();
+});
 loadAi33Status();
 
 $('ai-toggle').addEventListener('change', e => {

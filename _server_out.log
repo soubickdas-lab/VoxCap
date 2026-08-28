@@ -1,0 +1,16 @@
+INFO:     Started server process [26612]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)
+INFO:     127.0.0.1:53487 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53490 - "POST /api/ai33/generate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53525 - "GET /api/jobs/38e12da626ac HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53533 - "GET /api/jobs/38e12da626ac HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53535 - "GET /api/jobs/38e12da626ac HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54414 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54415 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54416 - "POST /api/ai33/generate HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62166 - "GET /api/jobs/9fdb190ac28b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62184 - "GET /api/jobs/9fdb190ac28b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62190 - "GET /api/jobs/9fdb190ac28b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60904 - "GET /api/jobs/9fdb190ac28b HTTP/1.1" 200 OK

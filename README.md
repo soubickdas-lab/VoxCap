@@ -60,12 +60,19 @@ Phir audio drop karo. Timing do tarike se milti hai (apne aap decide hota hai):
 
 Audio upload karne ke bajaye text se audio bana sakte ho:
 
-1. https://ai33.pro se apni API key lo
-2. VoxCap folder me `ai33-key.txt` file banao, usme key paste karo
-   (ya `AI33_API_KEY` environment variable set karo)
-3. App me "Audio khud bana lo" toggle on karo — text likho, voice chuno, Generate
+1. App kholo aur **🔑 Key** button dabao (ai33 wali row me, upar right)
+2. https://ai33.pro se apni API key paste karo → **Save**
+3. Bas — key hamesha ke liye save ho gayi. "Audio khud bana lo" toggle on
+   karo, text likho, voice chuno, Generate
 
-Key local hi rehti hai — repo/zip me kabhi nahi jaati (gitignored).
+Key **ek hi baar** daalni padti hai; app band/restart karne par bhi yaad rehti hai
+(badalne tak). Chahe to file bana kar bhi de sakte ho: `ai33-key.txt`, ya
+`AI33_API_KEY` environment variable.
+
+**Security:** key sirf isi PC par `ai33-key.txt` me save hoti hai — repo/zip me
+kabhi nahi jaati (gitignored). Agar app Cloudflare tunnel se public hai, to
+website par aane wale **na key dekh sakte hain, na set/hata sakte hain** —
+key wale endpoints sirf server wale PC se chalte hain.
 **SRT hamesha aapke apne Whisper se banti hai**, ai33 ka transcript use nahi hota.
 
 ## Setup (naye PC par)

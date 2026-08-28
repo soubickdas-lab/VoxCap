@@ -39,7 +39,7 @@ def _register_cuda_dlls() -> None:
 _register_cuda_dlls()
 
 import ai33
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -734,14 +734,54 @@ def job_audio(job_id: str, dl: int = 0, name: str = ""):
                         filename=(safe + ext) if dl else None)
 
 
+def _local_only(request: Request) -> None:
+    """API key sirf isi PC se set/hata sakte hain.
+
+    App Cloudflare tunnel se public ho sakti hai; tunnel ka traffic bhi
+    127.0.0.1 se aata hai, isliye uske headers (cf-ray / forwarded-for)
+    dekh kar remote request pehchante hain aur block karte hain.
+    """
+    host = (request.client.host if request.client else "") or ""
+    remote_hdr = any(h in request.headers for h in
+                     ("cf-connecting-ip", "cf-ray", "x-forwarded-for", "x-real-ip"))
+    if host not in ("127.0.0.1", "::1", "localhost") or remote_hdr:
+        raise HTTPException(403, "API key sirf server wale PC par set ho sakti hai")
+
+
 @app.get("/api/ai33/status")
-def ai33_status():
-    if not ai33.get_key():
-        return {"configured": False}
+def ai33_status(request: Request):
+    local = True
     try:
-        return {"configured": True, "credits": ai33.credits(), "health": ai33.health()}
+        _local_only(request)
+    except HTTPException:
+        local = False
+    if not ai33.get_key():
+        return {"configured": False, "can_edit": local}
+    # masked key bhi sirf local ko — website visitors ko nahi
+    shown = ai33.masked_key() if local else ""
+    try:
+        return {"configured": True, "can_edit": local, "key": shown,
+                "credits": ai33.credits(), "health": ai33.health()}
     except Exception as exc:
-        return {"configured": True, "error": str(exc)}
+        return {"configured": True, "can_edit": local,
+                "key": shown, "error": str(exc)}
+
+
+@app.post("/api/ai33/key")
+def ai33_set_key(request: Request, key: str = Form(...)):
+    _local_only(request)
+    try:
+        credits = ai33.set_key(key)
+    except Exception as exc:
+        raise HTTPException(400, str(exc))
+    return {"ok": True, "credits": credits, "key": ai33.masked_key()}
+
+
+@app.delete("/api/ai33/key")
+def ai33_clear_key(request: Request):
+    _local_only(request)
+    ai33.clear_key()
+    return {"ok": True}
 
 
 @app.get("/api/ai33/voices")

@@ -1,5 +1,5 @@
 ==========================================
-  VoxCap — Version 1.7
+  VoxCap — Version 1.8
 ==========================================
 
 Ye file batati hai ki aapke paas kaunsa version hai.
@@ -29,6 +29,14 @@ FEATURES
 ------------------------------------------
 CHANGELOG
 ------------------------------------------
+
+v1.8 (18 Aug 2026)
+- ai33 API key ab APP KE ANDAR SE set hoti hai - "Key" button dabao,
+  key paste karo, Save. Ek baar daalne ke baad hamesha save rehti hai
+  (badalne tak); restart par dobara daalne ki zaroorat nahi
+- Save karte waqt key check hoti hai - galat/khatam key turant bata deta hai
+- Key sirf server wale PC se set/hata sakte ho. Site public ho to visitors
+  na key dekh sakte hain na badal sakte hain
 
 v1.7 (18 Aug 2026)  - AI AUDIO
 - Naya toggle: "Audio khud bana lo (ai33)" - audio upload/drag ka jhanjhat

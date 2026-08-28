@@ -32,6 +32,49 @@ def get_key() -> str:
     return key
 
 
+def masked_key() -> str:
+    """Key ka sirf hissa dikhao — poori key kabhi bahar nahi jaati."""
+    k = get_key()
+    if not k:
+        return ""
+    return k[:7] + "…" + k[-4:] if len(k) > 14 else "…" + k[-4:]
+
+
+def set_key(key: str) -> int:
+    """Key check karke local file me save karo. Credits return karta hai.
+    Ek baar save hone ke baad hamesha rehti hai — badalne tak."""
+    key = (key or "").strip()
+    if not key:
+        raise Ai33Error("key khaali hai")
+
+    old = os.environ.get("AI33_API_KEY")
+    os.environ["AI33_API_KEY"] = key          # test ke liye temporarily
+    try:
+        c = credits()
+    except Ai33Error as exc:
+        if "401" in str(exc) or "Unauthorized" in str(exc):
+            raise Ai33Error("Ye key kaam nahi kar rahi — galat hai ya "
+                            "credits khatam hain. ai33.pro se check karo.") from exc
+        raise
+    finally:
+        if old is None:
+            os.environ.pop("AI33_API_KEY", None)
+        else:
+            os.environ["AI33_API_KEY"] = old
+
+    KEY_FILE.write_text(key, encoding="utf-8")
+    os.environ.pop("AI33_API_KEY", None)      # ab file hi source of truth
+    return c
+
+
+def clear_key() -> None:
+    try:
+        KEY_FILE.unlink()
+    except FileNotFoundError:
+        pass
+    os.environ.pop("AI33_API_KEY", None)
+
+
 def _request(method: str, path: str, *, params=None, form=None, body=None,
              timeout=60, retries=3):
     """HTTP call with retries — ai33 se connection toote to dobara try karta hai."""
